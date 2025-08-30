@@ -1,88 +1,93 @@
-// src/App.js
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import CategoryTabs from './CategoryTabs';
 import ImageGrid from './ImageGrid';
-import SentenceStrip from './SentenceStrip'; // <-- Importamos el nuevo componente
+import SentenceStrip from './SentenceStrip';
 import AdminPanel from './AdminPanel';
 import EditImageModal from './EditImageModal';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, populateInitialData } from './db';
 import { DragDropContext } from '@hello-pangea/dnd';
 
+// --- Imports de Firebase ---
+import { db, storage } from './firebase';
+import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
+import { ref as storageRef, deleteObject } from "firebase/storage";
+
+
 function App() {
-  useEffect(() => {
-    populateInitialData();
-  }, []);
-
-  const categories = useLiveQuery(() => db.categories.toArray(), []);
-  const images = useLiveQuery(() => db.images.toArray(), []);
-
+  const [categories, setCategories] = useState([]);
+  const [images, setImages] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
   const [sentence, setSentence] = useState([]);
   const [adminMode, setAdminMode] = useState(false);
   const [maximizedImage, setMaximizedImage] = useState(null);
   const [imageToEdit, setImageToEdit] = useState(null);
-  
-  const [displayedImages, setDisplayedImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const sortedCategories = useMemo(() => {
-    if (!categories) return [];
-    return [...categories].sort((a, b) => a.order - b.order);
-  }, [categories]);
-
+  // Cargar categorías en tiempo real desde Firebase
   useEffect(() => {
-    if (sortedCategories && sortedCategories.length > 0 && !activeCategory) {
-      setActiveCategory(sortedCategories[0]);
-    }
-  }, [sortedCategories, activeCategory]);
+    const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
+    const unsubscribe = onValue(categoriesQuery, (snapshot) => {
+      const data = snapshot.val();
+      const categoriesList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      setCategories(categoriesList);
 
+      if (isLoading && categoriesList.length > 0) {
+        setActiveCategory(categoriesList[0]);
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error al cargar categorías:", error);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [isLoading]);
+
+  // Cargar imágenes en tiempo real desde Firebase
   useEffect(() => {
-    if (!images || !activeCategory) {
-      setDisplayedImages([]);
-      return;
-    }
-    const sorted = images
-      .filter(img => img.categoryId === activeCategory.id)
-      .sort((a, b) => a.order - b.order);
-    
-    setDisplayedImages(sorted);
+    const imagesQuery = query(ref(db, 'images'), orderByChild('order'));
+    const unsubscribe = onValue(imagesQuery, (snapshot) => {
+      const data = snapshot.val();
+      const imagesList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      setImages(imagesList);
+    }, (error) => {
+      console.error("Error al cargar imágenes:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+
+  const displayedImages = React.useMemo(() => {
+    if (!activeCategory) return [];
+    return images.filter(img => img.categoryId === activeCategory.id);
   }, [images, activeCategory]);
 
   const longPressTimer = useRef();
 
   const handleButtonPressStart = () => {
-    longPressTimer.current = setTimeout(() => {
-      setAdminMode(true);
-    }, 1500);
+    longPressTimer.current = setTimeout(() => setAdminMode(true), 1500);
   };
 
-  const handleButtonPressEnd = () => {
-    clearTimeout(longPressTimer.current);
-  };
+  const handleButtonPressEnd = () => clearTimeout(longPressTimer.current);
 
   const handleImageClick = (image) => {
-    if (adminMode || maximizedImage) return;
-    
-    const alreadyExists = sentence.some(item => item.id === image.id);
-    if (alreadyExists) return;
-
+    if (adminMode || maximizedImage || sentence.some(item => item.id === image.id)) return;
     setMaximizedImage(image);
     setSentence([...sentence, image]);
-
-    setTimeout(() => {
-      setMaximizedImage(null);
-    }, 1500);
+    setTimeout(() => setMaximizedImage(null), 1500);
   };
 
-  const clearSentence = () => {
-    setSentence([]);
-  };
+  const clearSentence = () => setSentence([]);
 
-  const handleImageDelete = async (id) => {
+  const handleImageDelete = async (image) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
       try {
-        await db.images.delete(id);
+        await remove(ref(db, `images/${image.id}`));
+        const imageStorage = storageRef(storage, image.imageData);
+        await deleteObject(imageStorage).catch(e => console.warn(e));
+        if (image.audioData) {
+          const audioStorage = storageRef(storage, image.audioData);
+          await deleteObject(audioStorage).catch(e => console.warn(e));
+        }
       } catch (error) {
         console.error("Error al eliminar la imagen:", error);
         alert("No se pudo eliminar la imagen.");
@@ -90,71 +95,34 @@ function App() {
     }
   };
 
-  const handleImageUpdate = async (updatedImage) => {
-    try {
-      // La lógica de actualización ahora está en el modal,
-      // así que solo necesitamos cerrar el modal aquí.
-      setImageToEdit(null);
-    } catch (error) {
-      console.error("Error al actualizar la imagen:", error);
-      alert("No se pudo actualizar la imagen.");
-    }
-  };
-  
   const onDragEnd = (result) => {
-    const { destination, source } = result;
-    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
-      return;
-    }
-
+    if (!result.destination) return;
     const currentImages = Array.from(displayedImages);
-    const [movedImage] = currentImages.splice(source.index, 1);
-    currentImages.splice(destination.index, 0, movedImage);
-
-    const updates = currentImages.map((img, index) => ({
-      key: img.id,
-      changes: { order: index + 1 }
-    }));
-    
-    db.images.bulkUpdate(updates).catch(err => {
-      console.error("Fallo al actualizar el orden:", err);
+    const [movedImage] = currentImages.splice(result.source.index, 1);
+    currentImages.splice(result.destination.index, 0, movedImage);
+    const updates = {};
+    currentImages.forEach((img, index) => {
+      updates[`/images/${img.id}/order`] = index + 1;
     });
+    update(ref(db), updates).catch(err => console.error("Fallo al reordenar:", err));
   };
 
   const handleCategoryOrderChange = async (categoryId, direction) => {
-    if (!sortedCategories || sortedCategories.length < 2) return;
-
-    const currentIndex = sortedCategories.findIndex(c => c.id === categoryId);
-    if (currentIndex === -1) return;
-
-    let newIndex;
-    if (direction === 'up' && currentIndex > 0) {
-      newIndex = currentIndex - 1;
-    } else if (direction === 'down' && currentIndex < sortedCategories.length - 1) {
-      newIndex = currentIndex + 1;
-    } else {
-      return;
-    }
-
-    const reorderedCategories = [...sortedCategories];
+    const currentIndex = categories.findIndex(c => c.id === categoryId);
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= categories.length) return;
     
-    [reorderedCategories[currentIndex], reorderedCategories[newIndex]] = 
-    [reorderedCategories[newIndex], reorderedCategories[currentIndex]];
+    const reordered = [...categories];
+    [reordered[currentIndex], reordered[newIndex]] = [reordered[newIndex], reordered[currentIndex]];
 
-    const updates = reorderedCategories.map((category, index) => ({
-      key: category.id,
-      changes: { order: index + 1 }
-    }));
-
-    try {
-      await db.categories.bulkUpdate(updates);
-    } catch (error) {
-      console.error("Error al reordenar categorías:", error);
-      alert("Error al reordenar las categorías");
-    }
+    const updates = {};
+    reordered.forEach((cat, index) => {
+      updates[`/categories/${cat.id}/order`] = index + 1;
+    });
+    await update(ref(db), updates);
   };
 
-  if (!sortedCategories || !activeCategory) {
+  if (isLoading) {
     return <div>Cargando...</div>;
   }
 
@@ -168,16 +136,13 @@ function App() {
           onMouseLeave={handleButtonPressEnd}
           onTouchStart={handleButtonPressStart}
           onTouchEnd={handleButtonPressEnd}
-        >
-          ⚙️
-        </button>
+        >⚙️</button>
         
         <div className={`app-main-view ${adminMode ? 'shifted' : ''}`}>
-          {/* Usamos el nuevo componente aquí */}
           <SentenceStrip selectedImages={sentence} onClear={clearSentence} />
           <div className="main-content">
             <CategoryTabs 
-              categories={sortedCategories} 
+              categories={categories} 
               activeCategory={activeCategory}
               onCategorySelect={setActiveCategory} 
             />
@@ -185,7 +150,7 @@ function App() {
               images={displayedImages}
               onImageClick={handleImageClick}
               adminMode={adminMode}
-              onImageDelete={handleImageDelete}
+              onImageDelete={handleImageDelete} 
               onImageEdit={(image) => setImageToEdit(image)}
             />
           </div>
@@ -194,25 +159,22 @@ function App() {
         <AdminPanel 
           isOpen={adminMode}
           onClose={() => setAdminMode(false)}
-          categories={sortedCategories}
+          categories={categories}
+          images={images}
           onCategoryOrderChange={handleCategoryOrderChange}
         />
         
         <EditImageModal 
           image={imageToEdit}
-          categories={sortedCategories}
-          onSave={handleImageUpdate} // La función ahora solo cierra el modal
+          categories={categories}
+          onSave={() => setImageToEdit(null)}
           onCancel={() => setImageToEdit(null)}
         />
 
         {maximizedImage && (
           <div className="maximizer-overlay" onClick={() => setMaximizedImage(null)}>
             <div className="image-card maximizer-content">
-              {maximizedImage.imageData ? (
-                <img src={maximizedImage.imageData} alt={maximizedImage.name} className="image-placeholder" />
-              ) : (
-                <div className="image-placeholder"></div>
-              )}
+              {maximizedImage.imageData ? <img src={maximizedImage.imageData} alt={maximizedImage.name} className="image-placeholder" /> : <div className="image-placeholder"></div>}
               <p>{maximizedImage.name}</p>
             </div>
           </div>
@@ -223,5 +185,4 @@ function App() {
 }
 
 export default App;
-
 

@@ -1,71 +1,87 @@
 import React, { useState, useEffect } from 'react';
 
 function SentenceStrip({ selectedImages, onClear }) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [audioQueue, setAudioQueue] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState(false);
+  const audioQueue = React.useRef([]);
+  const currentAudio = React.useRef(null);
 
-  // Este efecto se activa cuando la cola de audio cambia
   useEffect(() => {
-    if (isSpeaking && audioQueue.length > 0) {
-      const audioBlob = audioQueue[0];
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.play();
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        // Cuando termina una, quita el audio de la cola y reproduce el siguiente
-        setAudioQueue(currentQueue => currentQueue.slice(1));
-      };
-    } else if (isSpeaking && audioQueue.length === 0) {
-      // Si la cola está vacía, terminamos de hablar
-      setIsSpeaking(false);
+    // Limpia el audio si la frase se limpia mientras se reproduce
+    return () => {
+      if (currentAudio.current) {
+        currentAudio.current.pause();
+        currentAudio.current = null;
+      }
+    };
+  }, []);
+
+  const playNextAudio = () => {
+    if (audioQueue.current.length === 0) {
+      setIsPlaying(false);
+      return;
     }
-  }, [isSpeaking, audioQueue]);
+    
+    setError(false);
+    const audioUrl = audioQueue.current.shift(); // Saca la siguiente URL de la cola
+    currentAudio.current = new Audio(audioUrl);
+    
+    currentAudio.current.play().catch(e => {
+      console.error("Error al reproducir audio:", e);
+      setError(true);
+      playNextAudio(); // Intenta reproducir el siguiente
+    });
+
+    currentAudio.current.onended = () => {
+      playNextAudio();
+    };
+  };
 
   const handleSpeak = () => {
-    if (isSpeaking || selectedImages.length === 0) return;
+    if (isPlaying) return;
 
-    // Filtramos para obtener solo las imágenes que tienen audio guardado
-    const imagesWithAudio = selectedImages.filter(img => img.audioData);
+    // Filtramos las imágenes para obtener solo las que tienen una URL de audio válida
+    const audioUrls = selectedImages
+      .map(img => img.audioData)
+      .filter(audioData => typeof audioData === 'string' && audioData.startsWith('https'));
 
-    if (imagesWithAudio.length === 0) {
+    if (audioUrls.length === 0) {
       console.warn("Ninguna de las imágenes seleccionadas tiene audio para reproducir.");
+      setError(true);
+      setTimeout(() => setError(false), 2000); // Muestra el error por 2 segundos
       return;
     }
 
-    // Llenamos la cola de reproducción y activamos el estado de 'hablando'
-    setAudioQueue(imagesWithAudio.map(img => img.audioData));
-    setIsSpeaking(true);
+    audioQueue.current = [...audioUrls];
+    setIsPlaying(true);
+    playNextAudio();
   };
-
+  
   return (
     <div className="sentence-strip">
       <button 
         onClick={handleSpeak} 
-        className="speak-button" 
-        disabled={isSpeaking || selectedImages.length === 0}
-        aria-label="Reproducir frase"
+        disabled={isPlaying || selectedImages.length === 0}
+        className={`speak-button ${error ? 'error' : ''}`}
       >
-        {isSpeaking ? <div className="spinner"></div> : '▶️'}
+        {isPlaying ? <div className="spinner"></div> : '▶️'}
       </button>
       <div className="selected-images">
-        {selectedImages.map((image, index) => (
-          <div key={`${image.id}-${index}`} className="image-card-small">
+        {selectedImages.map(image => (
+          <div key={`${image.id}-${Date.now()}`} className="image-card-small">
             {image.imageData ? (
               <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
             ) : (
-              <div className="image-placeholder-small"></div>
+              <p>{image.name}</p>
             )}
-            <p>{image.name}</p>
           </div>
         ))}
       </div>
       {selectedImages.length > 0 && (
-        <button onClick={onClear} className="clear-button" aria-label="Limpiar frase">×</button>
+        <button onClick={onClear} className="clear-button">×</button>
       )}
     </div>
   );
 }
 
 export default SentenceStrip;
-

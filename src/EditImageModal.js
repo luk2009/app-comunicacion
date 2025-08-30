@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import ImageCropper from './ImageCropper';
-import { db } from './db';
 import { generateAudio } from './utils';
 import { GEMINI_API_KEY } from './config';
+
+// --- Imports de Firebase ---
+import { db, storage } from './firebase';
+import { ref as dbRef, update } from "firebase/database";
+import { ref as storageRef, uploadString, getDownloadURL, deleteObject, uploadBytes } from "firebase/storage";
 
 function EditImageModal({ image, categories, onSave, onCancel }) {
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [imageData, setImageData] = useState('');
+  const [imageData, setImageData] = useState(''); // Contendrá la URL o los datos de la nueva imagen
   const [imageToCrop, setImageToCrop] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -19,66 +23,77 @@ function EditImageModal({ image, categories, onSave, onCancel }) {
     }
   }, [image]);
 
-  if (!image) {
-    return null;
-  }
+  if (!image) return null;
   
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageToCrop(reader.result);
-      };
+      reader.onloadend = () => setImageToCrop(reader.result);
       reader.readAsDataURL(file);
     }
   };
 
-  const onCropComplete = (croppedData) => {
-    setImageData(croppedData);
+  const onCropComplete = (croppedDataUrl) => {
+    setImageData(croppedDataUrl); // Actualiza la vista previa con la nueva imagen
     setImageToCrop(null);
   };
   
   const handleSave = async () => {
-  // --- VALIDACIÓN ---
-  if (!name.trim()) {
-    alert('El nombre de la imagen no puede estar vacío.');
-    return; 
-  }
+    if (!name.trim()) {
+      alert('El nombre no puede estar vacío.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const updates = {};
+      const nameChanged = name.trim() !== image.name;
 
-  setIsSaving(true);
-  try {
-    const updatedImagePayload = {
-      name: name.trim(),
-      categoryId: Number(categoryId),
-      imageData
-    };
-
-    const shouldGenerateAudio = !image.audioData || name.trim() !== image.name;
-
-    if (shouldGenerateAudio) {
-      if (!GEMINI_API_KEY || GEMINI_API_KEY === "TU_API_KEY_AQUI") {
-        alert("Error: Por favor, configura tu API Key en el archivo src/config.js.");
-        setIsSaving(false);
-        return;
+      // 1. Si la imagen cambió (es un data URL)
+      if (imageData.startsWith('data:image')) {
+        const oldImageRef = storageRef(storage, image.imageData);
+        await deleteObject(oldImageRef).catch(e => console.warn("No se encontró la imagen anterior", e));
+        
+        const newImageFileName = `${Date.now()}-${name.trim()}.jpeg`;
+        const newImageStorageRef = storageRef(storage, `images/${newImageFileName}`);
+        const uploadResult = await uploadString(newImageStorageRef, imageData, 'data_url');
+        updates[`/images/${image.id}/imageData`] = await getDownloadURL(uploadResult.ref);
       }
 
-      // --- NUESTRO "ESPÍA" DE DIAGNÓSTICO ---
-      console.log("Intentando generar audio para el texto:", `'${name.trim()}'`);
+      // 2. Si el nombre cambió, actualiza el nombre y el audio
+      if (nameChanged) {
+        updates[`/images/${image.id}/name`] = name.trim();
+        
+        if (image.audioData) {
+            const oldAudioRef = storageRef(storage, image.audioData);
+            await deleteObject(oldAudioRef).catch(e => console.warn("No se encontró el audio anterior", e));
+        }
+        
+        const audioBlob = await generateAudio(name.trim(), GEMINI_API_KEY);
+        const audioFileName = `${Date.now()}-${name.trim()}.mp3`;
+        const audioStorage = storageRef(storage, `audio/${audioFileName}`);
+        await uploadBytes(audioStorage, audioBlob);
+        updates[`/images/${image.id}/audioData`] = await getDownloadURL(audioStorage);
+      }
+      
+      // 3. Si la categoría cambió
+      if (categoryId !== image.categoryId) {
+          updates[`/images/${image.id}/categoryId`] = categoryId;
+      }
 
-      const audioBlob = await generateAudio(name.trim(), GEMINI_API_KEY);
-      updatedImagePayload.audioData = audioBlob;
+      // 4. Aplica las actualizaciones a la base de datos si hay cambios
+      if (Object.keys(updates).length > 0) {
+          await update(dbRef(db, '/'), updates);
+      }
+      
+      onSave();
+    } catch (error) {
+      console.error("Error al actualizar la imagen:", error);
+      alert("No se pudo actualizar la imagen.");
+    } finally {
+      setIsSaving(false);
     }
-
-    await db.images.update(image.id, updatedImagePayload);
-    onSave();
-  } catch (error) {
-    console.error("Error al actualizar la imagen:", error);
-    alert("No se pudo actualizar la imagen. Revisa la consola para más detalles.");
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   return (
     <>
@@ -86,7 +101,10 @@ function EditImageModal({ image, categories, onSave, onCancel }) {
         <ImageCropper 
           imageToCrop={imageToCrop}
           onCropComplete={onCropComplete}
-          onCancel={() => setImageToCrop(null)}
+          onCancel={() => {
+              setImageToCrop(null);
+              setImageData(image.imageData); // Revierte la vista previa si se cancela
+          }}
         />
       )}
 
@@ -111,11 +129,7 @@ function EditImageModal({ image, categories, onSave, onCancel }) {
           </div>
           <div className="form-group">
             <label>Vista previa actual:</label>
-            {imageData ? (
-                 <img src={imageData} alt="Vista previa" style={{ maxWidth: '150px', border: '1px solid #ccc' }}/>
-            ) : (
-                <div style={{ width: '150px', height: '150px', border: '1px solid #ccc', backgroundColor: '#f0f0f0' }}></div>
-            )}
+            <img src={imageData} alt="Vista previa" style={{ maxWidth: '150px', border: '1px solid #ccc' }}/>
           </div>
           <div className="edit-modal-buttons">
             <button onClick={onCancel} className="cancel-button" disabled={isSaving}>Cancelar</button>
@@ -130,3 +144,4 @@ function EditImageModal({ image, categories, onSave, onCancel }) {
 }
 
 export default EditImageModal;
+
