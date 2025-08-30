@@ -6,11 +6,11 @@ function CategoryTabs({ categories, activeCategory, onCategorySelect }) {
     <div className="category-tabs">
       {categories.map(category => (
         <button 
-          key={category}
-          className={category === activeCategory ? 'tab-button active' : 'tab-button'}
+          key={category.id} // Corregido: Usamos el 'id' único como clave.
+          className={category.id === activeCategory?.id ? 'tab-button active' : 'tab-button'}
           onClick={() => onCategorySelect(category)}
         >
-          {category}
+          {category.name} {/* Corregido: Mostramos solo el 'name' de la categoría. */}
         </button>
       ))}
     </div>

@@ -1,19 +1,61 @@
-// src/ImageGrid.js
 import React from 'react';
+import { Droppable, Draggable } from '@hello-pangea/dnd'; // <-- CAMBIO AQUÍ
 
-function ImageGrid({ images, onImageClick }) {
-  // En la app real, en lugar de texto, aquí se mostrarían las fotos
-  // que cargues desde la galería de la tablet.
+function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit }) {
+  if (!images) {
+    return <div className="image-grid">Cargando imágenes...</div>;
+  }
+
+  const handleCardClick = (image) => {
+    if (!adminMode) {
+      onImageClick(image);
+    }
+  };
+
   return (
-    <div className="image-grid">
-      {images.map(image => (
-        <div key={image} className="image-card" onClick={() => onImageClick(image)}>
-          <div className="image-placeholder">{/* Aquí iría la foto */}</div>
-          <p>{image}</p>
+    <Droppable droppableId="image-grid">
+      {(provided) => (
+        <div 
+          className="image-grid"
+          {...provided.droppableProps}
+          ref={provided.innerRef}
+        >
+          {images.map((image, index) => (
+            <Draggable key={image.id} draggableId={String(image.id)} index={index} isDragDisabled={!adminMode}>
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.draggableProps}
+                  {...provided.dragHandleProps}
+                  className={`image-card ${snapshot.isDragging ? 'dragging' : ''}`}
+                  onClick={() => handleCardClick(image)}
+                  style={{
+                    ...provided.draggableProps.style,
+                  }}
+                >
+                  {image.imageData ? (
+                    <img src={image.imageData} alt={image.name} className="image-placeholder" />
+                  ) : (
+                    <div className="image-placeholder"></div>
+                  )}
+                  <p>{image.name}</p>
+                  
+                  {adminMode && (
+                    <div className="admin-image-buttons">
+                      <button onClick={() => onImageDelete(image.id)} className="image-delete-button">×</button>
+                      <button onClick={() => onImageEdit(image)} className="image-edit-button">✏️</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Draggable>
+          ))}
+          {provided.placeholder}
         </div>
-      ))}
-    </div>
+      )}
+    </Droppable>
   );
 }
 
 export default ImageGrid;
+
