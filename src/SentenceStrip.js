@@ -1,44 +1,71 @@
-// src/SentenceStrip.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 function SentenceStrip({ selectedImages, onClear }) {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audioQueue, setAudioQueue] = useState([]);
 
-  // Esta función se encarga de hacer que el navegador hable
+  // Este efecto se activa cuando la cola de audio cambia
+  useEffect(() => {
+    if (isSpeaking && audioQueue.length > 0) {
+      const audioBlob = audioQueue[0];
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        // Cuando termina una, quita el audio de la cola y reproduce el siguiente
+        setAudioQueue(currentQueue => currentQueue.slice(1));
+      };
+    } else if (isSpeaking && audioQueue.length === 0) {
+      // Si la cola está vacía, terminamos de hablar
+      setIsSpeaking(false);
+    }
+  }, [isSpeaking, audioQueue]);
+
   const handleSpeak = () => {
-    // Si no hay imágenes seleccionadas, no hacemos nada
-    if (selectedImages.length === 0) return;
+    if (isSpeaking || selectedImages.length === 0) return;
 
-    // Juntamos los nombres de las imágenes en una sola frase
-    const textToSpeak = selectedImages.map(image => image.name).join(' ');
+    // Filtramos para obtener solo las imágenes que tienen audio guardado
+    const imagesWithAudio = selectedImages.filter(img => img.audioData);
 
-    // Creamos un objeto de "enunciado" para la API de voz
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    
-    // Opcional: puedes configurar el idioma si quieres
-    utterance.lang = 'es-ES'; 
+    if (imagesWithAudio.length === 0) {
+      console.warn("Ninguna de las imágenes seleccionadas tiene audio para reproducir.");
+      return;
+    }
 
-    // Usamos la API del navegador para leer la frase en voz alta
-    window.speechSynthesis.speak(utterance);
+    // Llenamos la cola de reproducción y activamos el estado de 'hablando'
+    setAudioQueue(imagesWithAudio.map(img => img.audioData));
+    setIsSpeaking(true);
   };
 
   return (
     <div className="sentence-strip">
-      {/* Botón para hablar */}
-      <button onClick={handleSpeak} className="speak-button">
-        ▶️
+      <button 
+        onClick={handleSpeak} 
+        className="speak-button" 
+        disabled={isSpeaking || selectedImages.length === 0}
+        aria-label="Reproducir frase"
+      >
+        {isSpeaking ? <div className="spinner"></div> : '▶️'}
       </button>
-
       <div className="selected-images">
         {selectedImages.map((image, index) => (
-          // Usamos el id de la imagen para la key, que es más robusto
           <div key={`${image.id}-${index}`} className="image-card-small">
-            {image.name}
+            {image.imageData ? (
+              <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
+            ) : (
+              <div className="image-placeholder-small"></div>
+            )}
+            <p>{image.name}</p>
           </div>
         ))}
       </div>
-      <button onClick={onClear} className="clear-button">X</button>
+      {selectedImages.length > 0 && (
+        <button onClick={onClear} className="clear-button" aria-label="Limpiar frase">×</button>
+      )}
     </div>
   );
 }
 
 export default SentenceStrip;
+

@@ -19,10 +19,16 @@ db.version(3).stores({
   images: '++id, categoryId, name, imageData, order',
 });
 
-// VERSIÓN 4: Corrige el índice de categorías (NUEVA)
+// Versión 4: Corrige el índice de categorías
 db.version(4).stores({
-  categories: '++id, name, order', // Sin '&' para permitir valores temporalmente duplicados
+  categories: '++id, name, order',
 });
+
+// --- NUEVA VERSIÓN 5: Añadimos campo para guardar el audio ---
+db.version(5).stores({
+  images: '++id, categoryId, name, imageData, order, audioData', // Nuevo campo audioData
+});
+
 
 // Función de población inicial
 export async function populateInitialData() {
@@ -37,6 +43,8 @@ export async function populateInitialData() {
         { name: 'Personal', order: 3 },
         { name: 'Sentimientos', order: 4 },
       ];
+      // Nota: los datos iniciales no tendrán audio pre-generado. 
+      // Se generará la primera vez que se editen o se pueden añadir nuevos con audio.
       const addedCategories = await db.categories.bulkAdd(categoriesToAdd, { allKeys: true });
 
       const imagesToAdd = [
@@ -55,3 +63,4 @@ export async function populateInitialData() {
     console.error('Error en la transacción de población:', e);
   });
 }
+

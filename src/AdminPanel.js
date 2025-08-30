@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { db } from './db';
 import ImageCropper from './ImageCropper';
+import { generateAudio } from './utils';
+import { GEMINI_API_KEY } from './config'; // Importa la clave de API
 
-// Aceptamos la nueva prop 'onCategoryOrderChange'
 function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
   const [imageName, setImageName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id || '');
-  
   const [imageToCrop, setImageToCrop] = useState(null);
   const [croppedImageData, setCroppedImageData] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -31,15 +32,30 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
       alert('Por favor, completa el nombre, la categoría y recorta una imagen.');
       return;
     }
+    
+    setIsSaving(true);
     try {
+      if (!GEMINI_API_KEY || GEMINI_API_KEY === "TU_API_KEY_AQUI") {
+        alert("Error: Por favor, configura tu API Key en el archivo src/config.js.");
+        setIsSaving(false);
+        return;
+      }
+
+      // 1. Generar el audio
+      const audioBlob = await generateAudio(imageName, GEMINI_API_KEY);
+
+      // 2. Guardar todo en la base de datos
       const imageCountInCategory = await db.images.where({ categoryId: Number(selectedCategory) }).count();
       await db.images.add({
         categoryId: Number(selectedCategory),
         name: imageName,
         imageData: croppedImageData,
         order: imageCountInCategory + 1,
+        audioData: audioBlob,
       });
+
       alert('¡Imagen guardada con éxito!');
+      // Resetear formulario
       setImageName('');
       setCroppedImageData(null);
       if (document.getElementById('file-input')) {
@@ -47,7 +63,9 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
       }
     } catch (error) {
       console.error('Error al guardar la imagen:', error);
-      alert('Hubo un error al guardar la imagen.');
+      alert('Hubo un error al guardar la imagen. Revisa la consola para más detalles.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -107,6 +125,7 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
                     type="text" 
                     value={imageName} 
                     onChange={(e) => setImageName(e.target.value)} 
+                    disabled={isSaving}
                 />
             </div>
             <div className="form-group">
@@ -114,6 +133,7 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
                 <select 
                     value={selectedCategory} 
                     onChange={(e) => setSelectedCategory(e.target.value)}
+                    disabled={isSaving}
                 >
                 {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -127,6 +147,7 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
                     id="file-input"
                     accept="image/*" 
                     onChange={handleFileChange} 
+                    disabled={isSaving}
                 />
             </div>
 
@@ -137,7 +158,9 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
                 </div>
             )}
 
-            <button onClick={handleSave} className="save-button">Guardar Imagen</button>
+            <button onClick={handleSave} className="save-button" disabled={isSaving}>
+              {isSaving ? <div className="spinner"></div> : 'Guardar Imagen'}
+            </button>
 
             <hr className="separator"/>
 
@@ -155,7 +178,6 @@ function AdminPanel({ isOpen, onClose, categories, onCategoryOrderChange }) {
               <ul className="category-list">
                   {categories.map((cat, index) => (
                   <li key={cat.id} className="category-item">
-                      {/* --- NUEVOS BOTONES DE ORDEN --- */}
                       <div className="category-order-buttons">
                           <button 
                               onClick={() => onCategoryOrderChange(cat.id, 'up')}

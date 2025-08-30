@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 import CategoryTabs from './CategoryTabs';
 import ImageGrid from './ImageGrid';
-import SentenceStrip from './SentenceStrip';
+import SentenceStrip from './SentenceStrip'; // <-- Importamos el nuevo componente
 import AdminPanel from './AdminPanel';
 import EditImageModal from './EditImageModal';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -26,12 +26,16 @@ function App() {
   
   const [displayedImages, setDisplayedImages] = useState([]);
 
-  // --- CAMBIO #1: Usar useMemo para ordenar categorías de forma segura y eficiente ---
   const sortedCategories = useMemo(() => {
     if (!categories) return [];
-    // Creamos una copia con [...categories] antes de ordenar para no mutar el original
     return [...categories].sort((a, b) => a.order - b.order);
   }, [categories]);
+
+  useEffect(() => {
+    if (sortedCategories && sortedCategories.length > 0 && !activeCategory) {
+      setActiveCategory(sortedCategories[0]);
+    }
+  }, [sortedCategories, activeCategory]);
 
   useEffect(() => {
     if (!images || !activeCategory) {
@@ -57,13 +61,6 @@ function App() {
     clearTimeout(longPressTimer.current);
   };
 
-  useEffect(() => {
-    // Usamos la nueva variable 'sortedCategories' que ya está ordenada
-    if (sortedCategories && sortedCategories.length > 0 && !activeCategory) {
-      setActiveCategory(sortedCategories[0]);
-    }
-  }, [sortedCategories, activeCategory]);
-
   const handleImageClick = (image) => {
     if (adminMode || maximizedImage) return;
     
@@ -84,41 +81,34 @@ function App() {
 
   const handleImageDelete = async (id) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
-        try {
-            await db.images.delete(id);
-          } catch (error) {
-            console.error("Error al eliminar la imagen:", error);
-            alert("No se pudo eliminar la imagen.");
-          }
+      try {
+        await db.images.delete(id);
+      } catch (error) {
+        console.error("Error al eliminar la imagen:", error);
+        alert("No se pudo eliminar la imagen.");
+      }
     }
   };
 
   const handleImageUpdate = async (updatedImage) => {
     try {
-      await db.images.update(updatedImage.id, {
-        name: updatedImage.name,
-        categoryId: Number(updatedImage.categoryId),
-        imageData: updatedImage.imageData,
-      });
+      // La lógica de actualización ahora está en el modal,
+      // así que solo necesitamos cerrar el modal aquí.
       setImageToEdit(null);
-      alert("Imagen actualizada con éxito.");
     } catch (error) {
       console.error("Error al actualizar la imagen:", error);
       alert("No se pudo actualizar la imagen.");
     }
   };
   
-  // --- CAMBIO #2: Corregida la lógica de reordenar imágenes ---
   const onDragEnd = (result) => {
     const { destination, source } = result;
-
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
       return;
     }
 
     const currentImages = Array.from(displayedImages);
     const [movedImage] = currentImages.splice(source.index, 1);
-    // La lógica correcta es usar splice de nuevo en el índice de destino
     currentImages.splice(destination.index, 0, movedImage);
 
     const updates = currentImages.map((img, index) => ({
@@ -131,45 +121,38 @@ function App() {
     });
   };
 
-  // --- CAMBIO #3: Simplificada la función de reordenar categorías ---
-// Reemplaza la función handleCategoryOrderChange en App.js con esta versión corregida:
+  const handleCategoryOrderChange = async (categoryId, direction) => {
+    if (!sortedCategories || sortedCategories.length < 2) return;
 
-const handleCategoryOrderChange = async (categoryId, direction) => {
-  if (!sortedCategories || sortedCategories.length < 2) return;
+    const currentIndex = sortedCategories.findIndex(c => c.id === categoryId);
+    if (currentIndex === -1) return;
 
-  const currentIndex = sortedCategories.findIndex(c => c.id === categoryId);
-  if (currentIndex === -1) return;
+    let newIndex;
+    if (direction === 'up' && currentIndex > 0) {
+      newIndex = currentIndex - 1;
+    } else if (direction === 'down' && currentIndex < sortedCategories.length - 1) {
+      newIndex = currentIndex + 1;
+    } else {
+      return;
+    }
 
-  let newIndex;
-  if (direction === 'up' && currentIndex > 0) {
-    newIndex = currentIndex - 1;
-  } else if (direction === 'down' && currentIndex < sortedCategories.length - 1) {
-    newIndex = currentIndex + 1;
-  } else {
-    return; // No se puede mover más
-  }
+    const reorderedCategories = [...sortedCategories];
+    
+    [reorderedCategories[currentIndex], reorderedCategories[newIndex]] = 
+    [reorderedCategories[newIndex], reorderedCategories[currentIndex]];
 
-  // Crear una copia del array para reordenar
-  const reorderedCategories = [...sortedCategories];
-  
-  // Intercambiar las posiciones
-  [reorderedCategories[currentIndex], reorderedCategories[newIndex]] = 
-  [reorderedCategories[newIndex], reorderedCategories[currentIndex]];
+    const updates = reorderedCategories.map((category, index) => ({
+      key: category.id,
+      changes: { order: index + 1 }
+    }));
 
-  // Preparar las actualizaciones con los nuevos órdenes
-  const updates = reorderedCategories.map((category, index) => ({
-    key: category.id,
-    changes: { order: index + 1 }
-  }));
-
-  try {
-    await db.categories.bulkUpdate(updates);
-    console.log('Categorías reordenadas exitosamente');
-  } catch (error) {
-    console.error("Error al reordenar categorías:", error);
-    alert("Error al reordenar las categorías");
-  }
-};
+    try {
+      await db.categories.bulkUpdate(updates);
+    } catch (error) {
+      console.error("Error al reordenar categorías:", error);
+      alert("Error al reordenar las categorías");
+    }
+  };
 
   if (!sortedCategories || !activeCategory) {
     return <div>Cargando...</div>;
@@ -190,6 +173,7 @@ const handleCategoryOrderChange = async (categoryId, direction) => {
         </button>
         
         <div className={`app-main-view ${adminMode ? 'shifted' : ''}`}>
+          {/* Usamos el nuevo componente aquí */}
           <SentenceStrip selectedImages={sentence} onClear={clearSentence} />
           <div className="main-content">
             <CategoryTabs 
@@ -217,7 +201,7 @@ const handleCategoryOrderChange = async (categoryId, direction) => {
         <EditImageModal 
           image={imageToEdit}
           categories={sortedCategories}
-          onSave={handleImageUpdate}
+          onSave={handleImageUpdate} // La función ahora solo cierra el modal
           onCancel={() => setImageToEdit(null)}
         />
 
@@ -239,4 +223,5 @@ const handleCategoryOrderChange = async (categoryId, direction) => {
 }
 
 export default App;
+
 
