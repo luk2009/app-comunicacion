@@ -27,6 +27,8 @@ function App() {
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   
   const CORRECT_PIN = '1234';
+  
+  const singleAudioPlayer = useRef(null);
 
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
@@ -93,6 +95,18 @@ function App() {
     if (isAlreadyInSentence) {
       return; 
     }
+    
+    // --- LÓGICA DE AUDIO MEJORADA ---
+    if (image.audioData) {
+      if (singleAudioPlayer.current) {
+        singleAudioPlayer.current.pause();
+      }
+      singleAudioPlayer.current = new Audio(image.audioData);
+      // Solo reproducimos cuando el audio esté listo
+      singleAudioPlayer.current.addEventListener('canplaythrough', () => {
+        singleAudioPlayer.current.play().catch(e => console.error("Error al reproducir el audio:", e));
+      });
+    }
 
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
       navigator.vibrate(50);
@@ -105,13 +119,22 @@ function App() {
   };
   
   const handleSentenceImageClick = (image) => {
+    // --- LÓGICA DE AUDIO MEJORADA ---
+    if (image.audioData) {
+      if (singleAudioPlayer.current) {
+        singleAudioPlayer.current.pause();
+      }
+      singleAudioPlayer.current = new Audio(image.audioData);
+      // Solo reproducimos cuando el audio esté listo
+      singleAudioPlayer.current.addEventListener('canplaythrough', () => {
+        singleAudioPlayer.current.play().catch(e => console.error("Error al reproducir el audio:", e));
+      });
+    }
+
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
       navigator.vibrate(50);
     }
-    if (image.audioData) {
-      const audio = new Audio(image.audioData);
-      audio.play().catch(e => console.error("Error al reproducir el audio:", e));
-    }
+    
     setMaximizedImage(image);
     setTimeout(() => setMaximizedImage(null), 1500);
   };
