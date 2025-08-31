@@ -94,14 +94,16 @@ function App() {
     }
   };
 
-  const handleImageClick = async (image) => {
+  const handleImageClick = (image) => {
     if (adminMode || maximizedImage) return;
 
     const isAlreadyInSentence = sentence.some(imgInSentence => imgInSentence.id === image.id);
     if (isAlreadyInSentence) return;
     
+    // --- LÓGICA SIMPLIFICADA ---
+    // Simplemente llamamos a playSingle. No necesitamos 'async' ni 'await' aquí.
     if (image.audioData) {
-      await audioManager.playSingle(image.audioData);
+      audioManager.playSingle(image.audioData);
     }
 
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
@@ -110,13 +112,15 @@ function App() {
 
     const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
     setMaximizedImage(image);
-    setSentence([...sentence, imageWithInstanceId]);
+    setSentence(prevSentence => [...prevSentence, imageWithInstanceId]);
+    
     setTimeout(() => setMaximizedImage(null), 1500);
   };
   
-  const handleSentenceImageClick = async (image) => {
+  const handleSentenceImageClick = (image) => {
+    // --- LÓGICA SIMPLIFICADA ---
     if (image.audioData) {
-      await audioManager.playSingle(image.audioData);
+      audioManager.playSingle(image.audioData);
     }
 
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
