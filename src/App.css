@@ -618,3 +618,17 @@ body {
   transition: opacity 0.2s ease-in-out;
   cursor: progress;
 }
+.image-card-small {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  width: 70px;
+  height: 70px;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  cursor: pointer; /* <-- AÑADIR ESTA LÍNEA */
+}

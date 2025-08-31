@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
-function SentenceStrip({ selectedImages, onClear }) {
+// --- PASO 2: Recibimos la nueva prop 'onImageClick' ---
+function SentenceStrip({ selectedImages, onClear, onImageClick }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState(false);
   const audioQueue = React.useRef([]);
   const currentAudio = React.useRef(null);
 
   useEffect(() => {
-    // Limpia el audio si la frase se limpia mientras se reproduce
     return () => {
       if (currentAudio.current) {
         currentAudio.current.pause();
@@ -23,13 +23,13 @@ function SentenceStrip({ selectedImages, onClear }) {
     }
     
     setError(false);
-    const audioUrl = audioQueue.current.shift(); // Saca la siguiente URL de la cola
+    const audioUrl = audioQueue.current.shift();
     currentAudio.current = new Audio(audioUrl);
     
     currentAudio.current.play().catch(e => {
       console.error("Error al reproducir audio:", e);
       setError(true);
-      playNextAudio(); // Intenta reproducir el siguiente
+      playNextAudio();
     });
 
     currentAudio.current.onended = () => {
@@ -39,8 +39,6 @@ function SentenceStrip({ selectedImages, onClear }) {
 
   const handleSpeak = () => {
     if (isPlaying) return;
-
-    // Filtramos las imágenes para obtener solo las que tienen una URL de audio válida
     const audioUrls = selectedImages
       .map(img => img.audioData)
       .filter(audioData => typeof audioData === 'string' && audioData.startsWith('https'));
@@ -48,7 +46,7 @@ function SentenceStrip({ selectedImages, onClear }) {
     if (audioUrls.length === 0) {
       console.warn("Ninguna de las imágenes seleccionadas tiene audio para reproducir.");
       setError(true);
-      setTimeout(() => setError(false), 2000); // Muestra el error por 2 segundos
+      setTimeout(() => setError(false), 2000);
       return;
     }
 
@@ -68,9 +66,12 @@ function SentenceStrip({ selectedImages, onClear }) {
       </button>
       <div className="selected-images">
         {selectedImages.map(image => (
-          // --- LÍNEA MODIFICADA ---
-          // Usamos el 'instanceId' que creamos en App.js como clave única.
-          <div key={image.instanceId} className="image-card-small">
+          // --- PASO 2: Añadimos el evento onClick a cada imagen de la frase ---
+          <div 
+            key={image.instanceId} 
+            className="image-card-small"
+            onClick={() => onImageClick(image)} // <-- ¡AQUÍ ESTÁ LA MAGIA!
+          >
             {image.imageData ? (
               <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
             ) : (

@@ -23,18 +23,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isReorderingCategories, setIsReorderingCategories] = useState(false);
 
-  // --- PARCHE 2: Carga de categorías respetando el orden de Firebase ---
+  // Carga de categorías
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
     const unsubscribe = onValue(categoriesQuery, (snapshot) => {
-      // Usamos snapshot.forEach para construir la lista PRESERVANDO el orden
       const categoriesList = [];
       snapshot.forEach(child => {
         categoriesList.push({ id: child.key, ...child.val() });
       });
-
       setCategories(categoriesList);
-
       if (isLoading && categoriesList.length > 0 && !activeCategory) {
         setActiveCategory(categoriesList[0]);
       }
@@ -44,9 +41,9 @@ function App() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [isLoading, activeCategory]); // No necesitamos isReordering aquí con este enfoque
+  }, [isLoading, activeCategory]);
 
-  // Cargar imágenes (este ya estaba bien, pero lo dejamos consistente)
+  // Carga de imágenes
   useEffect(() => {
     const imagesQuery = query(ref(db, 'images'), orderByChild('order'));
     const unsubscribe = onValue(imagesQuery, (snapshot) => {
@@ -81,6 +78,15 @@ function App() {
     setSentence([...sentence, imageWithInstanceId]);
     setTimeout(() => setMaximizedImage(null), 1500);
   };
+  
+  const handleSentenceImageClick = (image) => {
+    if (image.audioData) {
+      const audio = new Audio(image.audioData);
+      audio.play().catch(e => console.error("Error al reproducir el audio:", e));
+    }
+    setMaximizedImage(image);
+    setTimeout(() => setMaximizedImage(null), 1500);
+  };
 
   const clearSentence = () => setSentence([]);
 
@@ -101,54 +107,41 @@ function App() {
     }
   };
 
-  // --- PARCHE 1: onDragEnd usando la fuente correcta para droppableId ---
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
       return;
     }
 
-    // Reordenar CATEGORÍAS
     if (source.droppableId === 'categories' && destination.droppableId === 'categories') {
       setIsReorderingCategories(true);
-
       const reordered = Array.from(categories);
       const [moved] = reordered.splice(source.index, 1);
       reordered.splice(destination.index, 0, moved);
-      
-      // Actualización optimista para una UI fluida
       setCategories(reordered);
-
       const updates = {};
       reordered.forEach((cat, index) => {
         updates[`/categories/${cat.id}/order`] = index + 1;
       });
-
       update(ref(db), updates)
         .catch(err => {
           console.error("Fallo al reordenar categorías en Firebase:", err);
-          alert("No se pudo guardar el nuevo orden de las categorías.");
-          // Si falla, la suscripción de Firebase arreglará el estado
         })
         .finally(() => {
           setIsReorderingCategories(false);
         });
     }
 
-    // Reordenar IMÁGENES
     if (source.droppableId === 'image-grid' && destination.droppableId === 'image-grid') {
       const reorderedImages = Array.from(displayedImages);
       const [moved] = reorderedImages.splice(source.index, 1);
       reorderedImages.splice(destination.index, 0, moved);
-
       const updates = {};
       reorderedImages.forEach((img, index) => {
         updates[`/images/${img.id}/order`] = index + 1;
       });
-
       update(ref(db), updates).catch(err => {
         console.error("Fallo al reordenar imágenes:", err);
-        alert("No se pudo guardar el nuevo orden de las imágenes.");
       });
     }
   };
@@ -170,7 +163,11 @@ function App() {
         >⚙️</button>
         
         <div className={`app-main-view ${adminMode ? 'shifted' : ''}`}>
-          <SentenceStrip selectedImages={sentence} onClear={clearSentence} />
+          <SentenceStrip 
+            selectedImages={sentence} 
+            onClear={clearSentence}
+            onImageClick={handleSentenceImageClick} 
+          />
           <div className="main-content">
             <CategoryTabs 
               categories={categories} 
