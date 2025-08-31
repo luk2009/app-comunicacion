@@ -27,14 +27,14 @@ body {
   margin-right: 350px;
 }
 
-
 .sentence-strip {
   background-color: #ffffff;
   border-bottom: 2px solid #e0e0e0;
   padding: 10px;
   display: flex;
   align-items: center;
-  min-height: 80px;
+  /* MODIFICADO: Aumentamos la altura de la tira */
+  min-height: 110px;
   flex-shrink: 0;
 }
 
@@ -99,7 +99,7 @@ body {
   align-content: flex-start;
 }
 
-.image-card, .image-card-small {
+.image-card {
   background-color: #ffffff;
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -108,6 +108,7 @@ body {
   transition: transform 0.2s;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .image-card:active {
@@ -129,10 +130,104 @@ body {
   border-top-right-radius: 12px;
 }
 
+/* --- ESTILOS MODIFICADOS Y NUEVOS PARA LA TIRA DE FRASES --- */
+
 .image-card-small {
-  padding: 10px;
-  font-weight: bold;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  text-align: center;
+  /* MODIFICADO: Se convierte en contenedor flex y se agranda */
+  display: flex;
+  flex-direction: column;
+  width: 100px;
+  height: 100px;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+  cursor: default !important; /* El cursor por defecto no es de arrastre */
 }
+
+.image-card-small p {
+  display: none; /* Ocultamos el texto en las tarjetas pequeñas */
+}
+
+.image-placeholder-small {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #e0e0e0;
+}
+
+/* AÑADIDO: El área que sí es clickeable */
+.card-clickable-area {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* AÑADIDO: Estilos para el botón de eliminar y el mango de arrastre */
+.remove-from-sentence-button {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 24px;
+  height: 24px;
+  background-color: #ff5252;
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sentence-drag-handle {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab !important;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.sentence-drag-handle:active {
+  cursor: grabbing !important;
+}
+
+.sentence-drag-handle-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.image-card-small.dragging {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transform: scale(1.05);
+}
+
+.image-card.speaking, .image-card-small.speaking {
+  transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+  box-shadow: 0 0 20px 5px rgba(63, 81, 181, 0.7);
+  transform: scale(1.03);
+}
+
+/* --- FIN DE LA SECCIÓN DE CAMBIOS --- */
+
 
 .admin-sidebar {
   position: fixed;
@@ -174,32 +269,23 @@ body {
   color: #757575;
 }
 
-/* --- CAMBIOS CLAVE PARA SOLUCIONAR EL DRAG & DROP --- */
-
 .admin-sidebar-content {
   padding: 20px;
-  /* REMOVIDO: Se quita el scroll de este contenedor principal */
-  /* overflow-y: auto; */ 
   flex-grow: 1;
-  /* AÑADIDO: Se convierte en un contenedor flex en columna */
   display: flex;
   flex-direction: column;
 }
 
-/* AÑADIDO: Nuevo contenedor para el contenido que SÍ tiene scroll */
 .admin-content-scrollable {
   overflow-y: auto;
-  flex-shrink: 1; /* Permite que este elemento se encoja si es necesario */
-  padding-right: 10px; /* Un pequeño espacio para la barra de scroll */
+  flex-shrink: 1;
+  padding-right: 10px;
 }
 
-/* AÑADIDO: Nuevo contenedor para el área de arrastre que NO tiene scroll */
 .category-drag-area {
   margin-top: 15px;
-  flex-shrink: 0; /* Evita que esta área se encoja */
+  flex-shrink: 0;
 }
-
-/* --- FIN DE CAMBIOS CLAVE --- */
 
 .admin-sidebar h3 {
   margin-top: 0;
@@ -310,7 +396,6 @@ body {
   margin: 0;
   border: 1px solid #ccc;
   border-radius: 4px;
-  /* Correcto: Sin 'overflow' ni 'max-height' que interfieran */
 }
 
 .category-item {
@@ -337,10 +422,6 @@ body {
 
 .delete-button:hover {
   background-color: #d32f2f;
-}
-
-.image-card {
-  position: relative;
 }
 
 .admin-image-buttons {
@@ -537,32 +618,6 @@ body {
 .category-name {
   flex-grow: 1;
   text-align: left;
-  margin-left: 5px;
-}
-
-.image-card-small {
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  width: 70px;
-  height: 70px;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-}
-
-.image-card-small p {
-  display: none;
-}
-
-.image-placeholder-small {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background-color: #e0e0e0;
 }
 
 .speak-button:disabled {
@@ -589,12 +644,6 @@ body {
   background-color: #ffc107;
 }
 
-.category-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .drag-handle {
   display: flex;
   align-items: center;
@@ -608,67 +657,11 @@ body {
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-.category-name {
-  flex-grow: 1;
-  text-align: left;
-}
-
 .category-list.reordering {
   opacity: 0.5;
   transition: opacity 0.2s ease-in-out;
   cursor: progress;
 }
-.image-card-small {
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  width: 70px;
-  height: 70px;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-  cursor: pointer; /* <-- AÑADIR ESTA LÍNEA */
-}
-/* --- AÑADIDO: Estilos para la nueva funcionalidad de la tira de frases --- */
-
-/* Posicionar el botón de eliminar sobre la tarjeta */
-.image-card-small {
-  position: relative;
-  /* ... tus otros estilos para image-card-small ... */
-  cursor: grab; /* Cambiamos el cursor para indicar que se puede arrastrar */
-}
-
-/* Estilo del botón 'x' para quitar de la frase */
-.remove-from-sentence-button {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 22px;
-  height: 22px;
-  background-color: #ff5252;
-  color: white;
-  border: 2px solid white;
-  border-radius: 50%;
-  font-size: 16px;
-  font-weight: bold;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Efecto visual mientras se arrastra una imagen de la frase */
-.image-card-small.dragging {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  transform: scale(1.05);
-}
-/* --- AÑADIDO: Estilos para el Modal de PIN --- */
 
 .pin-modal-overlay {
   position: fixed;
@@ -744,12 +737,4 @@ body {
 
 .pin-button.utility {
   background-color: #e8eaf6;
-}
-
-/* --- AÑADIDO: Estilo para la confirmación visual al hablar --- */
-
-.image-card.speaking, .image-card-small.speaking {
-  transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
-  box-shadow: 0 0 20px 5px rgba(63, 81, 181, 0.7);
-  transform: scale(1.03);
 }

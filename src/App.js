@@ -12,8 +12,6 @@ import { db, storage } from './firebase';
 import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 
-// --- PASO 1: Interruptor para controlar la vibración ---
-// Cambia esto a 'false' para desactivar la vibración durante tus pruebas.
 const VIBRATION_ENABLED = true;
 
 function App() {
@@ -91,9 +89,13 @@ function App() {
   const handleImageClick = (image) => {
     if (adminMode || maximizedImage) return;
 
-    // --- PASO 2: Lógica de vibración añadida ---
+    const isAlreadyInSentence = sentence.some(imgInSentence => imgInSentence.id === image.id);
+    if (isAlreadyInSentence) {
+      return; 
+    }
+
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
-      navigator.vibrate(50); // Vibra por 50ms (un pulso corto)
+      navigator.vibrate(50);
     }
 
     const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
@@ -103,11 +105,9 @@ function App() {
   };
   
   const handleSentenceImageClick = (image) => {
-    // --- PASO 2: Lógica de vibración añadida (también aquí) ---
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
       navigator.vibrate(50);
     }
-
     if (image.audioData) {
       const audio = new Audio(image.audioData);
       audio.play().catch(e => console.error("Error al reproducir el audio:", e));

@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 
+const DragHandleIcon = () => (
+  <svg className="sentence-drag-handle-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="6" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="12" cy="18" r="2" />
+  </svg>
+);
+
 function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, activeImageId }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState(false);
@@ -8,7 +16,6 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, active
   const currentAudio = useRef(null);
 
   useEffect(() => {
-    // Este efecto limpia el audio si el componente se cierra mientras algo se reproduce.
     return () => {
       if (currentAudio.current) {
         currentAudio.current.pause();
@@ -72,11 +79,24 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, active
                 {(provided, snapshot) => (
                   <div 
                     className={`image-card-small ${snapshot.isDragging ? 'dragging' : ''} ${image.id === activeImageId ? 'speaking' : ''}`}
-                    onClick={() => onImageClick(image)}
                     ref={provided.innerRef}
                     {...provided.draggableProps}
-                    {...provided.dragHandleProps}
                   >
+                    <div 
+                      className="card-clickable-area" 
+                      onClick={() => onImageClick(image)}
+                    >
+                      {image.imageData ? (
+                        <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
+                      ) : (
+                        <p>{image.name}</p>
+                      )}
+                    </div>
+                    
+                    <div className="sentence-drag-handle" {...provided.dragHandleProps}>
+                      <DragHandleIcon />
+                    </div>
+
                     <button 
                       className="remove-from-sentence-button" 
                       onClick={(e) => {
@@ -86,11 +106,6 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, active
                     >
                       ×
                     </button>
-                    {image.imageData ? (
-                      <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
-                    ) : (
-                      <p>{image.name}</p>
-                    )}
                   </div>
                 )}
               </Draggable>
