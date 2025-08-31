@@ -1,11 +1,13 @@
 import React from 'react';
-import { Droppable, Draggable } from '@hello-pangea/dnd'; // <-- CAMBIO AQUÍ
+import { Droppable, Draggable } from '@hello-pangea/dnd';
 
-function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit }) {
+function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit, activeImageId }) {
   if (!images) {
     return <div className="image-grid">Cargando imágenes...</div>;
   }
 
+  // --- FUNCIÓN RESTAURADA ---
+  // Esta función es necesaria para decidir si se puede hacer clic en una tarjeta.
   const handleCardClick = (image) => {
     if (!adminMode) {
       onImageClick(image);
@@ -27,8 +29,8 @@ function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit
                   ref={provided.innerRef}
                   {...provided.draggableProps}
                   {...provided.dragHandleProps}
-                  className={`image-card ${snapshot.isDragging ? 'dragging' : ''}`}
-                  onClick={() => handleCardClick(image)}
+                  className={`image-card ${snapshot.isDragging ? 'dragging' : ''} ${image.id === activeImageId ? 'speaking' : ''}`}
+                  onClick={() => handleCardClick(image)} // Llama a la función restaurada
                   style={{
                     ...provided.draggableProps.style,
                   }}
@@ -42,8 +44,6 @@ function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit
                   
                   {adminMode && (
                     <div className="admin-image-buttons">
-                      {/* --- LÍNEA CORREGIDA --- */}
-                      {/* Se pasa el objeto 'image' completo en lugar de solo 'image.id' */}
                       <button onClick={() => onImageDelete(image)} className="image-delete-button">×</button>
                       <button onClick={() => onImageEdit(image)} className="image-edit-button">✏️</button>
                     </div>

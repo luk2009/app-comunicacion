@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
-// --- AÑADIDO: Importaciones para Drag and Drop ---
+import React, { useState, useEffect, useRef } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 
-// --- MODIFICADO: Recibimos la nueva prop 'onRemove' ---
-function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove }) {
+function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, activeImageId }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState(false);
-  const audioQueue = React.useRef([]);
-  const currentAudio = React.useRef(null);
+  const audioQueue = useRef([]);
+  const currentAudio = useRef(null);
 
   useEffect(() => {
+    // Este efecto limpia el audio si el componente se cierra mientras algo se reproduce.
     return () => {
       if (currentAudio.current) {
         currentAudio.current.pause();
@@ -61,7 +60,6 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove }) {
         {isPlaying ? <div className="spinner"></div> : '▶️'}
       </button>
       
-      {/* --- MODIFICADO: Toda la lista ahora es un área Droppable --- */}
       <Droppable droppableId="sentence-strip" direction="horizontal">
         {(provided) => (
           <div 
@@ -70,21 +68,19 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove }) {
             {...provided.droppableProps}
           >
             {selectedImages.map((image, index) => (
-              // --- MODIFICADO: Cada imagen ahora es Draggable ---
               <Draggable key={image.instanceId} draggableId={image.instanceId} index={index}>
                 {(provided, snapshot) => (
                   <div 
-                    className={`image-card-small ${snapshot.isDragging ? 'dragging' : ''}`}
+                    className={`image-card-small ${snapshot.isDragging ? 'dragging' : ''} ${image.id === activeImageId ? 'speaking' : ''}`}
                     onClick={() => onImageClick(image)}
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                   >
-                    {/* --- AÑADIDO: Botón para eliminar el pictograma --- */}
                     <button 
                       className="remove-from-sentence-button" 
                       onClick={(e) => {
-                        e.stopPropagation(); // Evita que se active el clic de la imagen (maximizar/reproducir)
+                        e.stopPropagation();
                         onRemove(image.instanceId);
                       }}
                     >

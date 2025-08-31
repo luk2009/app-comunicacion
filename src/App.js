@@ -5,12 +5,16 @@ import ImageGrid from './ImageGrid';
 import SentenceStrip from './SentenceStrip';
 import AdminPanel from './AdminPanel';
 import EditImageModal from './EditImageModal';
+import PinModal from './PinModal';
 import { DragDropContext } from '@hello-pangea/dnd';
 
-// --- Imports de Firebase ---
 import { db, storage } from './firebase';
 import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
 import { ref as storageRef, deleteObject } from "firebase/storage";
+
+// --- PASO 1: Interruptor para controlar la vibración ---
+// Cambia esto a 'false' para desactivar la vibración durante tus pruebas.
+const VIBRATION_ENABLED = true;
 
 function App() {
   const [categories, setCategories] = useState([]);
@@ -22,8 +26,10 @@ function App() {
   const [imageToEdit, setImageToEdit] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isReorderingCategories, setIsReorderingCategories] = useState(false);
+  const [isPinModalVisible, setIsPinModalVisible] = useState(false);
+  
+  const CORRECT_PIN = '1234';
 
-  // Carga de categorías
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
     const unsubscribe = onValue(categoriesQuery, (snapshot) => {
@@ -43,7 +49,6 @@ function App() {
     return () => unsubscribe();
   }, [isLoading, activeCategory]);
 
-  // Carga de imágenes
   useEffect(() => {
     const imagesQuery = query(ref(db, 'images'), orderByChild('order'));
     const unsubscribe = onValue(imagesQuery, (snapshot) => {
@@ -66,13 +71,31 @@ function App() {
   const longPressTimer = useRef();
 
   const handleButtonPressStart = () => {
-    longPressTimer.current = setTimeout(() => setAdminMode(true), 1500);
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      setIsPinModalVisible(true);
+    }, 1000);
   };
 
   const handleButtonPressEnd = () => clearTimeout(longPressTimer.current);
 
+  const handlePinSubmit = (submittedPin) => {
+    if (submittedPin === CORRECT_PIN) {
+      setAdminMode(true);
+      setIsPinModalVisible(false);
+    } else {
+      alert('PIN incorrecto. Inténtalo de nuevo.');
+    }
+  };
+
   const handleImageClick = (image) => {
     if (adminMode || maximizedImage) return;
+
+    // --- PASO 2: Lógica de vibración añadida ---
+    if (VIBRATION_ENABLED && 'vibrate' in navigator) {
+      navigator.vibrate(50); // Vibra por 50ms (un pulso corto)
+    }
+
     const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
     setMaximizedImage(image);
     setSentence([...sentence, imageWithInstanceId]);
@@ -80,6 +103,11 @@ function App() {
   };
   
   const handleSentenceImageClick = (image) => {
+    // --- PASO 2: Lógica de vibración añadida (también aquí) ---
+    if (VIBRATION_ENABLED && 'vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+
     if (image.audioData) {
       const audio = new Audio(image.audioData);
       audio.play().catch(e => console.error("Error al reproducir el audio:", e));
@@ -90,7 +118,6 @@ function App() {
 
   const clearSentence = () => setSentence([]);
 
-  // --- AÑADIDO: Nueva función para quitar un pictograma de la frase ---
   const handleRemoveFromSentence = (instanceIdToRemove) => {
     setSentence(currentSentence => 
       currentSentence.filter(image => image.instanceId !== instanceIdToRemove)
@@ -114,14 +141,12 @@ function App() {
     }
   };
 
-  // --- MODIFICADO: La función onDragEnd ahora maneja 3 casos ---
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
       return;
     }
 
-    // 1. Reordenar CATEGORÍAS
     if (source.droppableId === 'categories') {
       setIsReorderingCategories(true);
       const reordered = Array.from(categories);
@@ -133,11 +158,10 @@ function App() {
         updates[`/categories/${cat.id}/order`] = index + 1;
       });
       update(ref(db), updates)
-        .catch(err => console.error("Fallo al reordenar categorías:", err))
+        .catch(err => console.error("Fallo al reordenar categorías en Firebase:", err))
         .finally(() => setIsReorderingCategories(false));
     }
 
-    // 2. Reordenar IMÁGENES
     if (source.droppableId === 'image-grid') {
       const reorderedImages = Array.from(displayedImages);
       const [moved] = reorderedImages.splice(source.index, 1);
@@ -149,12 +173,11 @@ function App() {
       update(ref(db), updates).catch(err => console.error("Fallo al reordenar imágenes:", err));
     }
 
-    // --- AÑADIDO: 3. Reordenar PICTOGRAMAS EN LA FRASE ---
     if (source.droppableId === 'sentence-strip') {
       const reorderedSentence = Array.from(sentence);
       const [moved] = reorderedSentence.splice(source.index, 1);
       reorderedSentence.splice(destination.index, 0, moved);
-      setSentence(reorderedSentence); // Solo actualizamos el estado local, es muy rápido
+      setSentence(reorderedSentence);
     }
   };
 
@@ -179,8 +202,8 @@ function App() {
             selectedImages={sentence} 
             onClear={clearSentence}
             onImageClick={handleSentenceImageClick} 
-            // --- AÑADIDO: Pasamos la nueva función de eliminar ---
             onRemove={handleRemoveFromSentence}
+            activeImageId={maximizedImage?.id}
           />
           <div className="main-content">
             <CategoryTabs 
@@ -194,6 +217,7 @@ function App() {
               adminMode={adminMode}
               onImageDelete={handleImageDelete} 
               onImageEdit={(image) => setImageToEdit(image)}
+              activeImageId={maximizedImage?.id}
             />
           </div>
         </div>
@@ -212,6 +236,13 @@ function App() {
           onSave={() => setImageToEdit(null)}
           onCancel={() => setImageToEdit(null)}
         />
+        
+        {isPinModalVisible && (
+          <PinModal 
+            onClose={() => setIsPinModalVisible(false)}
+            onPinSubmit={handlePinSubmit}
+          />
+        )}
 
         {maximizedImage && (
           <div className="maximizer-overlay" onClick={() => setMaximizedImage(null)}>
