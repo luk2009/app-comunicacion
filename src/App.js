@@ -7,10 +7,10 @@ import AdminPanel from './AdminPanel';
 import EditImageModal from './EditImageModal';
 import PinModal from './PinModal';
 import { DragDropContext } from '@hello-pangea/dnd';
-
 import { db, storage } from './firebase';
 import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
 import { ref as storageRef, deleteObject } from "firebase/storage";
+import { audioManager } from './AudioManager';
 
 const VIBRATION_ENABLED = true;
 
@@ -27,8 +27,6 @@ function App() {
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   
   const CORRECT_PIN = '1234';
-  
-  const singleAudioPlayer = useRef(null);
 
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
@@ -67,6 +65,14 @@ function App() {
     if (!activeCategory) return [];
     return images.filter(img => img.categoryId === activeCategory.id);
   }, [images, activeCategory]);
+  
+  useEffect(() => {
+    displayedImages.forEach(image => {
+      if (image.audioData) {
+        audioManager.preloadAudio(image.audioData);
+      }
+    });
+  }, [displayedImages]);
 
   const longPressTimer = useRef();
 
@@ -88,24 +94,14 @@ function App() {
     }
   };
 
-  const handleImageClick = (image) => {
+  const handleImageClick = async (image) => {
     if (adminMode || maximizedImage) return;
 
     const isAlreadyInSentence = sentence.some(imgInSentence => imgInSentence.id === image.id);
-    if (isAlreadyInSentence) {
-      return; 
-    }
+    if (isAlreadyInSentence) return;
     
-    // --- LÓGICA DE AUDIO MEJORADA ---
     if (image.audioData) {
-      if (singleAudioPlayer.current) {
-        singleAudioPlayer.current.pause();
-      }
-      singleAudioPlayer.current = new Audio(image.audioData);
-      // Solo reproducimos cuando el audio esté listo
-      singleAudioPlayer.current.addEventListener('canplaythrough', () => {
-        singleAudioPlayer.current.play().catch(e => console.error("Error al reproducir el audio:", e));
-      });
+      await audioManager.playSingle(image.audioData);
     }
 
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
@@ -118,17 +114,9 @@ function App() {
     setTimeout(() => setMaximizedImage(null), 1500);
   };
   
-  const handleSentenceImageClick = (image) => {
-    // --- LÓGICA DE AUDIO MEJORADA ---
+  const handleSentenceImageClick = async (image) => {
     if (image.audioData) {
-      if (singleAudioPlayer.current) {
-        singleAudioPlayer.current.pause();
-      }
-      singleAudioPlayer.current = new Audio(image.audioData);
-      // Solo reproducimos cuando el audio esté listo
-      singleAudioPlayer.current.addEventListener('canplaythrough', () => {
-        singleAudioPlayer.current.play().catch(e => console.error("Error al reproducir el audio:", e));
-      });
+      await audioManager.playSingle(image.audioData);
     }
 
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
@@ -204,9 +192,7 @@ function App() {
     }
   };
 
-  if (isLoading) {
-    return <div>Cargando...</div>;
-  }
+  if (isLoading) { return <div>Cargando...</div>; }
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>

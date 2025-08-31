@@ -735,3 +735,30 @@ body {
 .pin-button.utility {
   background-color: #e8eaf6;
 }
+/* --- Estilos para el feedback de la secuencia de audio --- */
+
+/* Resalta la tarjeta que está sonando durante la secuencia */
+.image-card-small.sequence-playing {
+  border: 3px solid #2196f3;
+  transform: scale(1.05);
+}
+
+/* Mejora al botón de reproducir cuando está activo */
+.speak-button.playing {
+  background-color: #2196f3;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(33, 150, 243, 0); }
+}
+
+/* Deshabilitar botones durante la reproducción de la secuencia */
+.remove-from-sentence-button:disabled,
+.clear-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

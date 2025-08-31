@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
+import { audioManager } from './AudioManager';
 
+// --- CÓDIGO DEL ÍCONO RESTAURADO ---
 const DragHandleIcon = () => (
   <svg className="sentence-drag-handle-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
     <circle cx="12" cy="6" r="2" />
@@ -12,102 +14,112 @@ const DragHandleIcon = () => (
 function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, activeImageId }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState(false);
-  const audioQueue = useRef([]);
-  const currentAudio = useRef(null);
+  const [playingIndex, setPlayingIndex] = useState(-1);
 
   useEffect(() => {
     return () => {
-      if (currentAudio.current) {
-        currentAudio.current.pause();
-        currentAudio.current = null;
-      }
+      audioManager.stopAll();
     };
   }, []);
 
-  const playNextAudio = () => {
-    if (audioQueue.current.length === 0) {
+  useEffect(() => {
+    selectedImages.forEach(image => {
+      if (image.audioData) {
+        audioManager.preloadAudio(image.audioData);
+      }
+    });
+  }, [selectedImages]);
+
+  const handleSpeak = async () => {
+    if (isPlaying) {
+      audioManager.stopAll();
       setIsPlaying(false);
+      setPlayingIndex(-1);
       return;
     }
-    setError(false);
-    const audioUrl = audioQueue.current.shift();
-    currentAudio.current = new Audio(audioUrl);
-    currentAudio.current.play().catch(e => {
-      console.error("Error al reproducir audio:", e);
-      setError(true);
-      playNextAudio();
-    });
-    currentAudio.current.onended = () => {
-      playNextAudio();
-    };
-  };
 
-  const handleSpeak = () => {
-    if (isPlaying) return;
     const audioUrls = selectedImages
       .map(img => img.audioData)
-      .filter(audioData => typeof audioData === 'string' && audioData.startsWith('https'));
+      .filter(audioData => typeof audioData === 'string' && (audioData.startsWith('https') || audioData.startsWith('data:audio')));
+
     if (audioUrls.length === 0) {
       setError(true);
       setTimeout(() => setError(false), 2000);
       return;
     }
-    audioQueue.current = [...audioUrls];
+
     setIsPlaying(true);
-    playNextAudio();
+    setError(false);
+    
+    try {
+      await audioManager.playSequence(
+        audioUrls,
+        (currentIndex) => {
+          setPlayingIndex(currentIndex);
+        }
+      );
+    } catch (e) {
+      setError(true);
+      setTimeout(() => setError(false), 2000);
+    } finally {
+      setIsPlaying(false);
+      setPlayingIndex(-1);
+    }
+  };
+
+  const handleImageClick = (image) => {
+    if (isPlaying) return;
+    onImageClick(image);
   };
   
   return (
     <div className="sentence-strip">
       <button 
         onClick={handleSpeak} 
-        disabled={isPlaying || selectedImages.length === 0}
-        className={`speak-button ${error ? 'error' : ''}`}
+        disabled={selectedImages.length === 0}
+        className={`speak-button ${error ? 'error' : ''} ${isPlaying ? 'playing' : ''}`}
       >
         {isPlaying ? <div className="spinner"></div> : '▶️'}
       </button>
       
       <Droppable droppableId="sentence-strip" direction="horizontal">
         {(provided) => (
-          <div 
-            className="selected-images"
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-          >
+          <div className="selected-images" ref={provided.innerRef} {...provided.droppableProps}>
             {selectedImages.map((image, index) => (
               <Draggable key={image.instanceId} draggableId={image.instanceId} index={index}>
-                {(provided, snapshot) => (
-                  <div 
-                    className={`image-card-small ${snapshot.isDragging ? 'dragging' : ''} ${image.id === activeImageId ? 'speaking' : ''}`}
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                  >
+                {(provided, snapshot) => {
+                  const isCurrentlyPlayingInSequence = isPlaying && playingIndex === index;
+                  return (
                     <div 
-                      className="card-clickable-area" 
-                      onClick={() => onImageClick(image)}
+                      className={`image-card-small 
+                        ${snapshot.isDragging ? 'dragging' : ''} 
+                        ${image.id === activeImageId ? 'speaking' : ''}
+                        ${isCurrentlyPlayingInSequence ? 'sequence-playing' : ''}
+                      `}
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
                     >
-                      {image.imageData ? (
-                        <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
-                      ) : (
-                        <p>{image.name}</p>
-                      )}
+                      <div className="card-clickable-area" onClick={() => handleImageClick(image)}>
+                        {image.imageData ? (
+                          <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
+                        ) : (<p>{image.name}</p>)}
+                      </div>
+                      <div className="sentence-drag-handle" {...provided.dragHandleProps}>
+                        <DragHandleIcon />
+                      </div>
+                      <button 
+                        className="remove-from-sentence-button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemove(image.instanceId);
+                        }}
+                        disabled={isPlaying}
+                      >
+                        ×
+                      </button>
                     </div>
-                    
-                    <div className="sentence-drag-handle" {...provided.dragHandleProps}>
-                      <DragHandleIcon />
-                    </div>
-
-                    <button 
-                      className="remove-from-sentence-button" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(image.instanceId);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
+                  );
+                }}
               </Draggable>
             ))}
             {provided.placeholder}
@@ -116,7 +128,7 @@ function SentenceStrip({ selectedImages, onClear, onImageClick, onRemove, active
       </Droppable>
 
       {selectedImages.length > 0 && (
-        <button onClick={onClear} className="clear-button">×</button>
+        <button onClick={onClear} className="clear-button" disabled={isPlaying}>×</button>
       )}
     </div>
   );
