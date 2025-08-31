@@ -42,20 +42,33 @@ class AudioManager {
           return;
         }
 
-        // Asegurar que está en posición 0
-        audioElement.currentTime = 0;
-        
-        audioElement.play()
-          .then(() => {
-            // Audio comenzado correctamente
-          })
-          .catch(error => {
-            console.error("Error al ejecutar play():", error);
-            this.isPlaying = false;
-            this.currentAudio = null;
+        // SOLUCIÓN AL TIMING ISSUE: Usar el evento 'seeked'
+        const onSeeked = () => {
+          audioElement.removeEventListener('seeked', onSeeked);
+          
+          if (this.currentAudio !== audioElement) {
             cleanup();
-            reject(error);
-          });
+            return;
+          }
+
+          audioElement.play()
+            .then(() => {
+              // Audio comenzado correctamente
+            })
+            .catch(error => {
+              console.error("Error al ejecutar play():", error);
+              this.isPlaying = false;
+              this.currentAudio = null;
+              cleanup();
+              reject(error);
+            });
+        };
+
+        // Configurar el listener antes de hacer el seek
+        audioElement.addEventListener('seeked', onSeeked, { once: true });
+        
+        // Ahora establecer currentTime (esto disparará 'seeked' cuando esté listo)
+        audioElement.currentTime = 0;
       };
 
       const onEnded = () => {
