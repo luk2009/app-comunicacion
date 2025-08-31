@@ -33,7 +33,6 @@ body {
   padding: 10px;
   display: flex;
   align-items: center;
-  /* MODIFICADO: Aumentamos la altura de la tira */
   min-height: 110px;
   flex-shrink: 0;
 }
@@ -109,6 +108,9 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* --- AÑADIDO: Desactivar menú contextual y selección de texto --- */
+  -webkit-touch-callout: none; /* iOS Safari */
+  user-select: none; /* Standard syntax */
 }
 
 .image-card:active {
@@ -130,14 +132,11 @@ body {
   border-top-right-radius: 12px;
 }
 
-/* --- ESTILOS MODIFICADOS Y NUEVOS PARA LA TIRA DE FRASES --- */
-
 .image-card-small {
   background-color: #ffffff;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.08);
   text-align: center;
-  /* MODIFICADO: Se convierte en contenedor flex y se agranda */
   display: flex;
   flex-direction: column;
   width: 100px;
@@ -146,11 +145,14 @@ body {
   align-items: center;
   overflow: hidden;
   position: relative;
-  cursor: default !important; /* El cursor por defecto no es de arrastre */
+  cursor: default !important;
+  /* --- AÑADIDO: Desactivar menú contextual y selección de texto --- */
+  -webkit-touch-callout: none; /* iOS Safari */
+  user-select: none; /* Standard syntax */
 }
 
 .image-card-small p {
-  display: none; /* Ocultamos el texto en las tarjetas pequeñas */
+  display: none;
 }
 
 .image-placeholder-small {
@@ -160,7 +162,6 @@ body {
   background-color: #e0e0e0;
 }
 
-/* AÑADIDO: El área que sí es clickeable */
 .card-clickable-area {
   flex-grow: 1;
   display: flex;
@@ -171,7 +172,6 @@ body {
   height: 100%;
 }
 
-/* AÑADIDO: Estilos para el botón de eliminar y el mango de arrastre */
 .remove-from-sentence-button {
   position: absolute;
   top: -5px;
@@ -225,9 +225,6 @@ body {
   box-shadow: 0 0 20px 5px rgba(63, 81, 181, 0.7);
   transform: scale(1.03);
 }
-
-/* --- FIN DE LA SECCIÓN DE CAMBIOS --- */
-
 
 .admin-sidebar {
   position: fixed;
