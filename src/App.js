@@ -90,6 +90,13 @@ function App() {
 
   const clearSentence = () => setSentence([]);
 
+  // --- AÑADIDO: Nueva función para quitar un pictograma de la frase ---
+  const handleRemoveFromSentence = (instanceIdToRemove) => {
+    setSentence(currentSentence => 
+      currentSentence.filter(image => image.instanceId !== instanceIdToRemove)
+    );
+  };
+
   const handleImageDelete = async (image) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
       try {
@@ -107,13 +114,15 @@ function App() {
     }
   };
 
+  // --- MODIFICADO: La función onDragEnd ahora maneja 3 casos ---
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
       return;
     }
 
-    if (source.droppableId === 'categories' && destination.droppableId === 'categories') {
+    // 1. Reordenar CATEGORÍAS
+    if (source.droppableId === 'categories') {
       setIsReorderingCategories(true);
       const reordered = Array.from(categories);
       const [moved] = reordered.splice(source.index, 1);
@@ -124,15 +133,12 @@ function App() {
         updates[`/categories/${cat.id}/order`] = index + 1;
       });
       update(ref(db), updates)
-        .catch(err => {
-          console.error("Fallo al reordenar categorías en Firebase:", err);
-        })
-        .finally(() => {
-          setIsReorderingCategories(false);
-        });
+        .catch(err => console.error("Fallo al reordenar categorías:", err))
+        .finally(() => setIsReorderingCategories(false));
     }
 
-    if (source.droppableId === 'image-grid' && destination.droppableId === 'image-grid') {
+    // 2. Reordenar IMÁGENES
+    if (source.droppableId === 'image-grid') {
       const reorderedImages = Array.from(displayedImages);
       const [moved] = reorderedImages.splice(source.index, 1);
       reorderedImages.splice(destination.index, 0, moved);
@@ -140,9 +146,15 @@ function App() {
       reorderedImages.forEach((img, index) => {
         updates[`/images/${img.id}/order`] = index + 1;
       });
-      update(ref(db), updates).catch(err => {
-        console.error("Fallo al reordenar imágenes:", err);
-      });
+      update(ref(db), updates).catch(err => console.error("Fallo al reordenar imágenes:", err));
+    }
+
+    // --- AÑADIDO: 3. Reordenar PICTOGRAMAS EN LA FRASE ---
+    if (source.droppableId === 'sentence-strip') {
+      const reorderedSentence = Array.from(sentence);
+      const [moved] = reorderedSentence.splice(source.index, 1);
+      reorderedSentence.splice(destination.index, 0, moved);
+      setSentence(reorderedSentence); // Solo actualizamos el estado local, es muy rápido
     }
   };
 
@@ -167,6 +179,8 @@ function App() {
             selectedImages={sentence} 
             onClear={clearSentence}
             onImageClick={handleSentenceImageClick} 
+            // --- AÑADIDO: Pasamos la nueva función de eliminar ---
+            onRemove={handleRemoveFromSentence}
           />
           <div className="main-content">
             <CategoryTabs 

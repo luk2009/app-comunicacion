@@ -632,3 +632,39 @@ body {
   overflow: hidden;
   cursor: pointer; /* <-- AÑADIR ESTA LÍNEA */
 }
+/* --- AÑADIDO: Estilos para la nueva funcionalidad de la tira de frases --- */
+
+/* Posicionar el botón de eliminar sobre la tarjeta */
+.image-card-small {
+  position: relative;
+  /* ... tus otros estilos para image-card-small ... */
+  cursor: grab; /* Cambiamos el cursor para indicar que se puede arrastrar */
+}
+
+/* Estilo del botón 'x' para quitar de la frase */
+.remove-from-sentence-button {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  background-color: #ff5252;
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Efecto visual mientras se arrastra una imagen de la frase */
+.image-card-small.dragging {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transform: scale(1.05);
+}
