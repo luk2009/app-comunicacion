@@ -12,7 +12,6 @@ import { db, storage } from './firebase';
 import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 
-
 function App() {
   const [categories, setCategories] = useState([]);
   const [images, setImages] = useState([]);
@@ -22,16 +21,21 @@ function App() {
   const [maximizedImage, setMaximizedImage] = useState(null);
   const [imageToEdit, setImageToEdit] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReorderingCategories, setIsReorderingCategories] = useState(false);
 
-  // Cargar categorías en tiempo real desde Firebase
+  // --- PARCHE 2: Carga de categorías respetando el orden de Firebase ---
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
     const unsubscribe = onValue(categoriesQuery, (snapshot) => {
-      const data = snapshot.val();
-      const categoriesList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      // Usamos snapshot.forEach para construir la lista PRESERVANDO el orden
+      const categoriesList = [];
+      snapshot.forEach(child => {
+        categoriesList.push({ id: child.key, ...child.val() });
+      });
+
       setCategories(categoriesList);
 
-      if (isLoading && categoriesList.length > 0) {
+      if (isLoading && categoriesList.length > 0 && !activeCategory) {
         setActiveCategory(categoriesList[0]);
       }
       setIsLoading(false);
@@ -40,21 +44,22 @@ function App() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [isLoading]);
+  }, [isLoading, activeCategory]); // No necesitamos isReordering aquí con este enfoque
 
-  // Cargar imágenes en tiempo real desde Firebase
+  // Cargar imágenes (este ya estaba bien, pero lo dejamos consistente)
   useEffect(() => {
     const imagesQuery = query(ref(db, 'images'), orderByChild('order'));
     const unsubscribe = onValue(imagesQuery, (snapshot) => {
-      const data = snapshot.val();
-      const imagesList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      const imagesList = [];
+      snapshot.forEach(child => {
+        imagesList.push({ id: child.key, ...child.val() });
+      });
       setImages(imagesList);
     }, (error) => {
       console.error("Error al cargar imágenes:", error);
     });
     return () => unsubscribe();
   }, []);
-
 
   const displayedImages = React.useMemo(() => {
     if (!activeCategory) return [];
@@ -70,9 +75,10 @@ function App() {
   const handleButtonPressEnd = () => clearTimeout(longPressTimer.current);
 
   const handleImageClick = (image) => {
-    if (adminMode || maximizedImage || sentence.some(item => item.id === image.id)) return;
+    if (adminMode || maximizedImage) return;
+    const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
     setMaximizedImage(image);
-    setSentence([...sentence, image]);
+    setSentence([...sentence, imageWithInstanceId]);
     setTimeout(() => setMaximizedImage(null), 1500);
   };
 
@@ -95,31 +101,56 @@ function App() {
     }
   };
 
+  // --- PARCHE 1: onDragEnd usando la fuente correcta para droppableId ---
   const onDragEnd = (result) => {
-    if (!result.destination) return;
-    const currentImages = Array.from(displayedImages);
-    const [movedImage] = currentImages.splice(result.source.index, 1);
-    currentImages.splice(result.destination.index, 0, movedImage);
-    const updates = {};
-    currentImages.forEach((img, index) => {
-      updates[`/images/${img.id}/order`] = index + 1;
-    });
-    update(ref(db), updates).catch(err => console.error("Fallo al reordenar:", err));
-  };
+    const { source, destination } = result;
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return;
+    }
 
-  const handleCategoryOrderChange = async (categoryId, direction) => {
-    const currentIndex = categories.findIndex(c => c.id === categoryId);
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= categories.length) return;
-    
-    const reordered = [...categories];
-    [reordered[currentIndex], reordered[newIndex]] = [reordered[newIndex], reordered[currentIndex]];
+    // Reordenar CATEGORÍAS
+    if (source.droppableId === 'categories' && destination.droppableId === 'categories') {
+      setIsReorderingCategories(true);
 
-    const updates = {};
-    reordered.forEach((cat, index) => {
-      updates[`/categories/${cat.id}/order`] = index + 1;
-    });
-    await update(ref(db), updates);
+      const reordered = Array.from(categories);
+      const [moved] = reordered.splice(source.index, 1);
+      reordered.splice(destination.index, 0, moved);
+      
+      // Actualización optimista para una UI fluida
+      setCategories(reordered);
+
+      const updates = {};
+      reordered.forEach((cat, index) => {
+        updates[`/categories/${cat.id}/order`] = index + 1;
+      });
+
+      update(ref(db), updates)
+        .catch(err => {
+          console.error("Fallo al reordenar categorías en Firebase:", err);
+          alert("No se pudo guardar el nuevo orden de las categorías.");
+          // Si falla, la suscripción de Firebase arreglará el estado
+        })
+        .finally(() => {
+          setIsReorderingCategories(false);
+        });
+    }
+
+    // Reordenar IMÁGENES
+    if (source.droppableId === 'image-grid' && destination.droppableId === 'image-grid') {
+      const reorderedImages = Array.from(displayedImages);
+      const [moved] = reorderedImages.splice(source.index, 1);
+      reorderedImages.splice(destination.index, 0, moved);
+
+      const updates = {};
+      reorderedImages.forEach((img, index) => {
+        updates[`/images/${img.id}/order`] = index + 1;
+      });
+
+      update(ref(db), updates).catch(err => {
+        console.error("Fallo al reordenar imágenes:", err);
+        alert("No se pudo guardar el nuevo orden de las imágenes.");
+      });
+    }
   };
 
   if (isLoading) {
@@ -161,7 +192,7 @@ function App() {
           onClose={() => setAdminMode(false)}
           categories={categories}
           images={images}
-          onCategoryOrderChange={handleCategoryOrderChange}
+          isReorderingCategories={isReorderingCategories}
         />
         
         <EditImageModal 
@@ -185,4 +216,3 @@ function App() {
 }
 
 export default App;
-

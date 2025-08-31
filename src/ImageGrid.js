@@ -42,7 +42,9 @@ function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit
                   
                   {adminMode && (
                     <div className="admin-image-buttons">
-                      <button onClick={() => onImageDelete(image.id)} className="image-delete-button">×</button>
+                      {/* --- LÍNEA CORREGIDA --- */}
+                      {/* Se pasa el objeto 'image' completo en lugar de solo 'image.id' */}
+                      <button onClick={() => onImageDelete(image)} className="image-delete-button">×</button>
                       <button onClick={() => onImageEdit(image)} className="image-edit-button">✏️</button>
                     </div>
                   )}
@@ -58,4 +60,3 @@ function ImageGrid({ images, onImageClick, adminMode, onImageDelete, onImageEdit
 }
 
 export default ImageGrid;
-

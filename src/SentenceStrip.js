@@ -68,7 +68,9 @@ function SentenceStrip({ selectedImages, onClear }) {
       </button>
       <div className="selected-images">
         {selectedImages.map(image => (
-          <div key={`${image.id}-${Date.now()}`} className="image-card-small">
+          // --- LÍNEA MODIFICADA ---
+          // Usamos el 'instanceId' que creamos en App.js como clave única.
+          <div key={image.instanceId} className="image-card-small">
             {image.imageData ? (
               <img src={image.imageData} alt={image.name} className="image-placeholder-small" />
             ) : (

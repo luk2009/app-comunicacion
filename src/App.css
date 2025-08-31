@@ -14,7 +14,6 @@ body {
   position: relative;
 }
 
-/* Contenedor principal que se moverá */
 .app-main-view {
   display: flex;
   flex-direction: column;
@@ -25,7 +24,7 @@ body {
 }
 
 .app-main-view.shifted {
-  margin-right: 350px; /* Ancho de la barra lateral */
+  margin-right: 350px;
 }
 
 
@@ -135,7 +134,6 @@ body {
   font-weight: bold;
 }
 
-/* --- Estilos para la Barra Lateral de Administración --- */
 .admin-sidebar {
   position: fixed;
   top: 0;
@@ -176,11 +174,32 @@ body {
   color: #757575;
 }
 
+/* --- CAMBIOS CLAVE PARA SOLUCIONAR EL DRAG & DROP --- */
+
 .admin-sidebar-content {
   padding: 20px;
-  overflow-y: auto;
+  /* REMOVIDO: Se quita el scroll de este contenedor principal */
+  /* overflow-y: auto; */ 
   flex-grow: 1;
+  /* AÑADIDO: Se convierte en un contenedor flex en columna */
+  display: flex;
+  flex-direction: column;
 }
+
+/* AÑADIDO: Nuevo contenedor para el contenido que SÍ tiene scroll */
+.admin-content-scrollable {
+  overflow-y: auto;
+  flex-shrink: 1; /* Permite que este elemento se encoja si es necesario */
+  padding-right: 10px; /* Un pequeño espacio para la barra de scroll */
+}
+
+/* AÑADIDO: Nuevo contenedor para el área de arrastre que NO tiene scroll */
+.category-drag-area {
+  margin-top: 15px;
+  flex-shrink: 0; /* Evita que esta área se encoja */
+}
+
+/* --- FIN DE CAMBIOS CLAVE --- */
 
 .admin-sidebar h3 {
   margin-top: 0;
@@ -189,8 +208,6 @@ body {
   padding-bottom: 10px;
 }
 
-
-/* Estilos para el botón de administrador y formularios */
 .admin-toggle-button {
   position: fixed;
   bottom: 20px;
@@ -240,8 +257,6 @@ body {
   background-color: #45a049;
 }
 
-
-/* Estilos de gestión de categorías */
 .speak-button {
   background-color: #4CAF50;
   color: white;
@@ -262,6 +277,7 @@ body {
 .speak-button:hover {
   background-color: #45a049;
 }
+
 .separator {
   border: none;
   border-top: 1px solid #eee;
@@ -292,19 +308,17 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 200px; /* Aumentamos un poco la altura */
-  overflow-y: auto;
   border: 1px solid #ccc;
   border-radius: 4px;
+  /* Correcto: Sin 'overflow' ni 'max-height' que interfieran */
 }
 
-/* --- REGLA CORREGIDA #1 --- */
 .category-item {
   display: flex;
-  align-items: center; /* Se quita justify-content: space-between */
+  align-items: center;
   padding: 10px;
   border-bottom: 1px solid #eee;
-  gap: 10px; /* Se añade gap para espaciar los elementos */
+  gap: 10px;
 }
 
 .category-item:last-child {
@@ -325,8 +339,6 @@ body {
   background-color: #d32f2f;
 }
 
-
-/* Estilos para botones de admin en cada imagen */
 .image-card {
   position: relative;
 }
@@ -379,8 +391,6 @@ body {
   background-color: #303f9f;
 }
 
-
-/* Estilo para la maximización de imagen */
 .maximizer-overlay {
   position: fixed;
   top: 0;
@@ -395,29 +405,25 @@ body {
   animation: fadeIn 0.3s;
 }
 
-/* Corrección para la tarjeta maximizada */
 .maximizer-content {
   width: 40vh;
-  height: auto; /* Altura automática para mantener proporción */
-  aspect-ratio: 1 / 1; /* Forzamos la proporción cuadrada */
+  height: auto;
+  aspect-ratio: 1 / 1;
   max-width: 400px;
   max-height: 400px;
   animation: zoomIn 0.3s;
 }
 
-/* Hacemos que la imagen llene el espacio disponible */
 .maximizer-content .image-placeholder {
   height: auto;
-  flex-grow: 1; /* Permite que la imagen crezca */
+  flex-grow: 1;
   border-radius: 12px 12px 0 0;
 }
 
-/* Ajustamos el tamaño del texto en la vista maximizada */
 .maximizer-content p {
-  font-size: 1.5rem; /* Hacemos el texto más grande y proporcionado */
+  font-size: 1.5rem;
   padding: 15px;
 }
-
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -429,7 +435,6 @@ body {
   to { transform: scale(1); }
 }
 
-/* Estilos para el recortador */
 .cropper-overlay {
   position: fixed;
   top: 0;
@@ -474,7 +479,6 @@ body {
   cursor: pointer;
 }
 
-/* Estilos para el Modal de Edición */
 .edit-modal-overlay {
   position: fixed;
   top: 0;
@@ -511,7 +515,6 @@ body {
   margin-top: 25px;
 }
 
-/* NUEVOS ESTILOS PARA ORDENAR CATEGORÍAS */
 .category-order-buttons {
   display: flex;
   gap: 5px;
@@ -531,15 +534,11 @@ body {
   cursor: not-allowed;
 }
 
-/* --- REGLA CORREGIDA #2 --- */
 .category-name {
-  flex-grow: 1; /* Mantenemos esto */
-  text-align: left; /* Añadimos alineación */
-  margin-left: 5px; /* Añadimos un pequeño margen */
+  flex-grow: 1;
+  text-align: left;
+  margin-left: 5px;
 }
-/* ... tu CSS existente ... */
-
-/* ESTILOS PARA LA TIRA DE FRASES Y EL BOTÓN DE VOZ */
 
 .image-card-small {
   background-color: #ffffff;
@@ -556,7 +555,7 @@ body {
 }
 
 .image-card-small p {
-  display: none; /* Ocultamos el texto en la tira para más limpieza */
+  display: none;
 }
 
 .image-placeholder-small {
@@ -566,34 +565,11 @@ body {
   background-color: #e0e0e0;
 }
 
-.speak-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-  cursor: pointer;
-  margin-right: 15px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  transition: background-color 0.2s;
-}
-
-.speak-button:hover:not(:disabled) {
-  background-color: #45a049;
-}
-
 .speak-button:disabled {
   background-color: #a5d6a7;
   cursor: not-allowed;
 }
 
-/* Spinner para el botón de hablar */
 .spinner {
   border: 4px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
@@ -610,5 +586,35 @@ body {
 }
 
 .speak-button.error {
-  background-color: #ffc107; /* Un color de advertencia (ámbar) */
+  background-color: #ffc107;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #757575;
+}
+
+.category-item.dragging {
+  background-color: #e8eaf6;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.category-name {
+  flex-grow: 1;
+  text-align: left;
+}
+
+.category-list.reordering {
+  opacity: 0.5;
+  transition: opacity 0.2s ease-in-out;
+  cursor: progress;
 }
