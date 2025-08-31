@@ -4,6 +4,8 @@ body {
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  /* --- AÑADIDO: Desactiva el gesto de "deslizar para recargar" en la app --- */
+  overscroll-behavior-y: contain;
 }
 
 .app-container {
@@ -108,7 +110,6 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  /* --- AÑADIDO: Desactivar menú contextual y selección de texto --- */
   -webkit-touch-callout: none; /* iOS Safari */
   user-select: none; /* Standard syntax */
 }
@@ -146,7 +147,6 @@ body {
   overflow: hidden;
   position: relative;
   cursor: default !important;
-  /* --- AÑADIDO: Desactivar menú contextual y selección de texto --- */
   -webkit-touch-callout: none; /* iOS Safari */
   user-select: none; /* Standard syntax */
 }
