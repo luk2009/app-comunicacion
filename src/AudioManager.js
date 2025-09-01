@@ -2,18 +2,16 @@
 
 class AudioManager {
   constructor() {
-    this.audioCache = new Map(); // Mantenemos la caché para precargar
+    this.audioCache = new Map();
     this.isPlaying = false;
-    this.currentAudio = null; // Referencia al audio actual
+    this.currentAudio = null;
   }
 
   preloadAudio(audioUrl) {
     if (!audioUrl || this.audioCache.has(audioUrl)) return;
 
-    // Creamos instancias temporales solo para la precarga en segundo plano
     const audio = new Audio();
     audio.src = audioUrl;
-    // No agregamos al cache hasta que esté listo para evitar problemas
     audio.addEventListener('loadeddata', () => {
       this.audioCache.set(audioUrl, audio);
     }, { once: true });
@@ -26,23 +24,19 @@ class AudioManager {
         return;
       }
 
-      // CAMBIO FUNDAMENTAL: Crear un NUEVO elemento de audio para cada reproducción
-      this.stopAll(); // Detiene cualquier reproducción anterior
+      this.stopAll(); 
       
-      // Crear elemento de audio completamente nuevo
       const audioElement = new Audio();
       audioElement.preload = 'auto';
       this.currentAudio = audioElement;
       this.isPlaying = true;
 
       const onCanPlay = () => {
-        // Verificar que este sigue siendo el audio actual
         if (this.currentAudio !== audioElement) {
           cleanup();
           return;
         }
 
-        // SOLUCIÓN AL TIMING ISSUE: Usar el evento 'seeked'
         const onSeeked = () => {
           audioElement.removeEventListener('seeked', onSeeked);
           
@@ -52,9 +46,7 @@ class AudioManager {
           }
 
           audioElement.play()
-            .then(() => {
-              // Audio comenzado correctamente
-            })
+            .then(() => {})
             .catch(error => {
               console.error("Error al ejecutar play():", error);
               this.isPlaying = false;
@@ -64,10 +56,7 @@ class AudioManager {
             });
         };
 
-        // Configurar el listener antes de hacer el seek
         audioElement.addEventListener('seeked', onSeeked, { once: true });
-        
-        // Ahora establecer currentTime (esto disparará 'seeked' cuando esté listo)
         audioElement.currentTime = 0;
       };
 
@@ -75,22 +64,25 @@ class AudioManager {
         this.isPlaying = false;
         this.currentAudio = null;
         cleanup();
-        resolve(); // La promesa se resuelve cuando el audio TERMINA
+        resolve();
       };
 
-      const onError = (error) => {
-        console.error("Error en el elemento de audio:", error);
+      // --- FUNCIÓN DE ERROR MEJORADA ---
+      const onError = (event) => {
+        // En lugar de devolver el '[object Event]', creamos un error descriptivo.
+        const errorMessage = `No se pudo cargar el audio. Es posible que el archivo esté corrupto o haya un problema de red. URL: ${event.target.src}`;
+        console.error("Error en el elemento de audio:", errorMessage);
+        
         this.isPlaying = false;
         this.currentAudio = null;
         cleanup();
-        reject(error);
+        reject(new Error(errorMessage)); // Devolvemos un objeto Error real.
       };
 
       const cleanup = () => {
         audioElement.removeEventListener('canplay', onCanPlay);
         audioElement.removeEventListener('ended', onEnded);
         audioElement.removeEventListener('error', onError);
-        // Limpiar el elemento de audio
         audioElement.pause();
         audioElement.src = '';
         if (this.currentAudio === audioElement) {
@@ -98,22 +90,21 @@ class AudioManager {
         }
       };
 
-      // Configurar eventos ANTES de asignar src
       audioElement.addEventListener('canplay', onCanPlay, { once: true });
       audioElement.addEventListener('ended', onEnded, { once: true });
       audioElement.addEventListener('error', onError, { once: true });
 
-      // Finalmente, asignar la fuente (esto dispara la carga)
       audioElement.src = audioUrl;
     });
   }
 
   async playSequence(audioUrls, onProgress = null) {
+    // ... (El resto de la clase no cambia)
     this.stopAll();
     this.isPlaying = true;
     
     for (let i = 0; i < audioUrls.length; i++) {
-      if (!this.isPlaying) break; // Permite la cancelación
+      if (!this.isPlaying) break;
       const audioUrl = audioUrls[i];
       if (!audioUrl) continue;
       
@@ -122,7 +113,6 @@ class AudioManager {
       try {
         await this.playSingle(audioUrl);
         
-        // Pequeña pausa entre audios para dar tiempo al cleanup
         if (i < audioUrls.length - 1 && this.isPlaying) {
           await new Promise(resolve => setTimeout(resolve, 50));
         }

@@ -1,3 +1,5 @@
+// src/AdminPanel.js
+
 import React, { useState, useEffect } from 'react';
 import ImageCropper from './ImageCropper';
 import { generateAudio } from './utils';
@@ -7,13 +9,20 @@ import { ref as storageRef, uploadString, getDownloadURL, uploadBytes, deleteObj
 import { ref as dbRef, push, set, remove, get, update } from "firebase/database";
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 
+// --- CÓDIGO CORREGIDO Y COMPLETO ---
+// Este es el código SVG que faltaba y causaba el error de sintaxis.
 const DragHandleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ cursor: 'grab' }}>
     <path d="M5 10H7V14H5V10ZM9 10H11V14H9V10ZM13 10H15V14H13V10ZM17 10H19V14H17V10Z" fill="currentColor"/>
   </svg>
 );
 
-function AdminPanel({ isOpen, onClose, categories, images, isReorderingCategories }) {
+function AdminPanel({ 
+  isOpen, onClose, categories, images, isReorderingCategories,
+  viewMode, setViewMode,
+  showCategoriesInYTView, setShowCategoriesInYTView,
+  showSentenceStripInYTView, setShowSentenceStripInYTView
+}) {
   const [imageName, setImageName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [imageToCrop, setImageToCrop] = useState(null);
@@ -27,7 +36,6 @@ function AdminPanel({ isOpen, onClose, categories, images, isReorderingCategorie
     }
   }, [categories, selectedCategory]);
 
-  // --- El resto de funciones no cambian ---
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -143,10 +151,43 @@ function AdminPanel({ isOpen, onClose, categories, images, isReorderingCategorie
           <button onClick={onClose} className="close-button">×</button>
         </div>
         
-        {/* Contenedor principal que ahora usa flexbox en columna */}
         <div className="admin-sidebar-content">
-          {/* 1. Contenido que SÍ necesita scroll */}
           <div className="admin-content-scrollable">
+            <h3>Configuración de Interfaz</h3>
+            <div className="form-group">
+              <label>Modo de Visualización:</label>
+              <select value={viewMode} onChange={e => setViewMode(e.target.value)}>
+                <option value="grid">Cuadrícula (Estándar)</option>
+                <option value="youtube">YouTube (Simplificada)</option>
+              </select>
+            </div>
+            
+            {viewMode === 'youtube' && (
+              <>
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      checked={showCategoriesInYTView} 
+                      onChange={e => setShowCategoriesInYTView(e.target.checked)}
+                    />
+                    Mostrar Pestañas de Categorías
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      checked={showSentenceStripInYTView} 
+                      onChange={e => setShowSentenceStripInYTView(e.target.checked)}
+                    />
+                    Mostrar Tira de Frases
+                  </label>
+                </div>
+              </>
+            )}
+            <hr className="separator"/>
+
             <h3>Añadir Nueva Imagen</h3>
             <div className="form-group">
               <label>Nombre de la imagen:</label>
@@ -181,7 +222,6 @@ function AdminPanel({ isOpen, onClose, categories, images, isReorderingCategorie
             </div>
           </div>
           
-          {/* 2. Área de arrastre que NO necesita scroll */}
           <div className="category-drag-area">
             <Droppable droppableId="categories">
               {(provided) => (

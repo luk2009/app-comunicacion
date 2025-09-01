@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/App.js
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 import CategoryTabs from './CategoryTabs';
 import ImageGrid from './ImageGrid';
@@ -6,6 +8,7 @@ import SentenceStrip from './SentenceStrip';
 import AdminPanel from './AdminPanel';
 import EditImageModal from './EditImageModal';
 import PinModal from './PinModal';
+import YouTubeView from './YouTubeView';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { db, storage } from './firebase';
 import { ref, onValue, query, orderByChild, update, remove } from "firebase/database";
@@ -27,6 +30,16 @@ function App() {
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   
   const CORRECT_PIN = '1234';
+
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') || 'grid');
+  const [showCategoriesInYTView, setShowCategoriesInYTView] = useState(() => JSON.parse(localStorage.getItem('showCategoriesInYTView')) ?? true);
+  const [showSentenceStripInYTView, setShowSentenceStripInYTView] = useState(() => JSON.parse(localStorage.getItem('showSentenceStripInYTView')) ?? true);
+
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+    localStorage.setItem('showCategoriesInYTView', JSON.stringify(showCategoriesInYTView));
+    localStorage.setItem('showSentenceStripInYTView', JSON.stringify(showSentenceStripInYTView));
+  }, [viewMode, showCategoriesInYTView, showSentenceStripInYTView]);
 
   useEffect(() => {
     const categoriesQuery = query(ref(db, 'categories'), orderByChild('order'));
@@ -61,28 +74,26 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const displayedImages = React.useMemo(() => {
+  const displayedImages = useMemo(() => {
     if (!activeCategory) return [];
     return images.filter(img => img.categoryId === activeCategory.id);
   }, [images, activeCategory]);
   
   useEffect(() => {
-    displayedImages.forEach(image => {
+    images.forEach(image => {
       if (image.audioData) {
         audioManager.preloadAudio(image.audioData);
       }
     });
-  }, [displayedImages]);
+  }, [images]);
 
   const longPressTimer = useRef();
-
   const handleButtonPressStart = () => {
     clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
       setIsPinModalVisible(true);
     }, 1000);
   };
-
   const handleButtonPressEnd = () => clearTimeout(longPressTimer.current);
 
   const handlePinSubmit = (submittedPin) => {
@@ -96,43 +107,44 @@ function App() {
 
   const handleImageClick = (image) => {
     if (adminMode || maximizedImage) return;
-
-    const isAlreadyInSentence = sentence.some(imgInSentence => imgInSentence.id === image.id);
-    if (isAlreadyInSentence) return;
-    
-    // --- LÓGICA SIMPLIFICADA ---
-    // Simplemente llamamos a playSingle. No necesitamos 'async' ni 'await' aquí.
     if (image.audioData) {
-      audioManager.playSingle(image.audioData);
+      // --- RED DE SEGURIDAD AÑADIDA ---
+      audioManager.playSingle(image.audioData)
+        .catch(err => {
+          console.error("Fallo al reproducir audio principal:", err);
+        });
     }
-
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
       navigator.vibrate(50);
     }
-
-    const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
-    setMaximizedImage(image);
-    setSentence(prevSentence => [...prevSentence, imageWithInstanceId]);
+    const shouldAddToSentence = !(viewMode === 'youtube' && !showSentenceStripInYTView);
+    if (shouldAddToSentence) {
+        const isAlreadyInSentence = sentence.some(imgInSentence => imgInSentence.id === image.id);
+        if (isAlreadyInSentence) return;
+        const imageWithInstanceId = { ...image, instanceId: `${image.id}-${Date.now()}` };
+        setSentence(prevSentence => [...prevSentence, imageWithInstanceId]);
+    }
     
+    setMaximizedImage(image);
     setTimeout(() => setMaximizedImage(null), 1500);
   };
   
   const handleSentenceImageClick = (image) => {
-    // --- LÓGICA SIMPLIFICADA ---
     if (image.audioData) {
-      audioManager.playSingle(image.audioData);
+      // --- RED DE SEGURIDAD AÑADIDA ---
+      audioManager.playSingle(image.audioData)
+        .catch(err => {
+          console.error("Fallo al reproducir audio de la tira de frases:", err);
+        });
     }
-
     if (VIBRATION_ENABLED && 'vibrate' in navigator) {
       navigator.vibrate(50);
     }
-    
     setMaximizedImage(image);
     setTimeout(() => setMaximizedImage(null), 1500);
   };
 
   const clearSentence = () => setSentence([]);
-
   const handleRemoveFromSentence = (instanceIdToRemove) => {
     setSentence(currentSentence => 
       currentSentence.filter(image => image.instanceId !== instanceIdToRemove)
@@ -198,40 +210,55 @@ function App() {
 
   if (isLoading) { return <div>Cargando...</div>; }
 
+  const isSentenceStripVisible = viewMode === 'grid' || (viewMode === 'youtube' && showSentenceStripInYTView);
+  const areCategoryTabsVisible = viewMode === 'grid' || (viewMode === 'youtube' && showCategoriesInYTView);
+
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="app-container">
         <button 
           className="admin-toggle-button"
-          onMouseDown={handleButtonPressStart}
-          onMouseUp={handleButtonPressEnd}
-          onMouseLeave={handleButtonPressEnd}
-          onTouchStart={handleButtonPressStart}
+          onMouseDown={handleButtonPressStart} onMouseUp={handleButtonPressEnd}
+          onMouseLeave={handleButtonPressEnd} onTouchStart={handleButtonPressStart}
           onTouchEnd={handleButtonPressEnd}
         >⚙️</button>
         
         <div className={`app-main-view ${adminMode ? 'shifted' : ''}`}>
-          <SentenceStrip 
-            selectedImages={sentence} 
-            onClear={clearSentence}
-            onImageClick={handleSentenceImageClick} 
-            onRemove={handleRemoveFromSentence}
-            activeImageId={maximizedImage?.id}
-          />
-          <div className="main-content">
-            <CategoryTabs 
-              categories={categories} 
-              activeCategory={activeCategory}
-              onCategorySelect={setActiveCategory} 
-            />
-            <ImageGrid 
-              images={displayedImages}
-              onImageClick={handleImageClick}
-              adminMode={adminMode}
-              onImageDelete={handleImageDelete} 
-              onImageEdit={(image) => setImageToEdit(image)}
+          {isSentenceStripVisible && (
+            <SentenceStrip 
+              selectedImages={sentence} 
+              onClear={clearSentence}
+              onImageClick={handleSentenceImageClick} 
+              onRemove={handleRemoveFromSentence}
               activeImageId={maximizedImage?.id}
             />
+          )}
+
+          <div className="main-content">
+            {areCategoryTabsVisible && (
+              <CategoryTabs 
+                categories={categories} 
+                activeCategory={activeCategory}
+                onCategorySelect={setActiveCategory} 
+              />
+            )}
+            
+            {viewMode === 'grid' ? (
+              <ImageGrid 
+                images={displayedImages}
+                onImageClick={handleImageClick}
+                adminMode={adminMode}
+                onImageDelete={handleImageDelete} 
+                onImageEdit={(image) => setImageToEdit(image)}
+                activeImageId={maximizedImage?.id}
+              />
+            ) : (
+              <YouTubeView 
+                images={images} 
+                onImageClick={handleImageClick}
+                activeImageId={maximizedImage?.id}
+              />
+            )}
           </div>
         </div>
 
@@ -241,30 +268,21 @@ function App() {
           categories={categories}
           images={images}
           isReorderingCategories={isReorderingCategories}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          showCategoriesInYTView={showCategoriesInYTView}
+          setShowCategoriesInYTView={setShowCategoriesInYTView}
+          showSentenceStripInYTView={showSentenceStripInYTView}
+          setShowSentenceStripInYTView={setShowSentenceStripInYTView}
         />
         
         <EditImageModal 
-          image={imageToEdit}
-          categories={categories}
-          onSave={() => setImageToEdit(null)}
-          onCancel={() => setImageToEdit(null)}
+          image={imageToEdit} categories={categories}
+          onSave={() => setImageToEdit(null)} onCancel={() => setImageToEdit(null)}
         />
         
-        {isPinModalVisible && (
-          <PinModal 
-            onClose={() => setIsPinModalVisible(false)}
-            onPinSubmit={handlePinSubmit}
-          />
-        )}
-
-        {maximizedImage && (
-          <div className="maximizer-overlay" onClick={() => setMaximizedImage(null)}>
-            <div className="image-card maximizer-content">
-              {maximizedImage.imageData ? <img src={maximizedImage.imageData} alt={maximizedImage.name} className="image-placeholder" /> : <div className="image-placeholder"></div>}
-              <p>{maximizedImage.name}</p>
-            </div>
-          </div>
-        )}
+        {isPinModalVisible && <PinModal onClose={() => setIsPinModalVisible(false)} onPinSubmit={handlePinSubmit} />}
+        
       </div>
     </DragDropContext>
   );
